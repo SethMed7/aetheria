@@ -204,54 +204,66 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    let renderer: AetheriaRenderer;
-    try {
-      renderer = new AetheriaRenderer(canvas);
-    } catch {
-      const errorFrame = requestAnimationFrame(() => setRenderError(true));
-      return () => cancelAnimationFrame(errorFrame);
-    }
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let renderer: AetheriaRenderer | null = null;
+    let observer: ResizeObserver | null = null;
+    let initializationTimer = 0;
     let frame = 0;
-    let lastFrame = 0;
-    const start = performance.now();
+    let disposed = false;
 
-    const resize = () => {
-      const bounds = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      const nextWidth = Math.max(1, Math.round(bounds.width * dpr));
-      const nextHeight = Math.max(1, Math.round(bounds.height * dpr));
-      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
-        canvas.width = nextWidth;
-        canvas.height = nextHeight;
+    const initialize = () => {
+      if (disposed) return;
+      try {
+        renderer = new AetheriaRenderer(canvas);
+      } catch {
+        setRenderError(true);
+        return;
+      }
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let lastFrame = 0;
+      const start = performance.now();
+
+      const resize = () => {
+        const bounds = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const nextWidth = Math.max(1, Math.round(bounds.width * dpr));
+        const nextHeight = Math.max(1, Math.round(bounds.height * dpr));
+        if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+          canvas.width = nextWidth;
+          canvas.height = nextHeight;
+          needsRender.current = true;
+        }
+      };
+
+      const draw = (now: number) => {
+        const animationDue = document.visibilityState === "visible" && !reducedMotion && now - lastFrame > 32;
+        if (renderer && (needsRender.current || animationDue)) {
+          const elapsed = reducedMotion ? 0 : (now - start) / 1000;
+          renderer.render(paramsRef.current, {
+            time: elapsed + pointer.current.x * 0.34 + pointer.current.y * 0.12,
+          });
+          needsRender.current = false;
+          lastFrame = now;
+        }
+        frame = requestAnimationFrame(draw);
+      };
+
+      observer = new ResizeObserver(() => {
+        resize();
         needsRender.current = true;
-      }
-    };
-
-    const draw = (now: number) => {
-      const animationDue = document.visibilityState === "visible" && !reducedMotion && now - lastFrame > 32;
-      if (needsRender.current || animationDue) {
-        const elapsed = reducedMotion ? 0 : (now - start) / 1000;
-        renderer.render(paramsRef.current, {
-          time: elapsed + pointer.current.x * 0.34 + pointer.current.y * 0.12,
-        });
-        needsRender.current = false;
-        lastFrame = now;
-      }
-      frame = requestAnimationFrame(draw);
-    };
-
-    const observer = new ResizeObserver(() => {
+      });
+      observer.observe(canvas);
       resize();
-      needsRender.current = true;
-    });
-    observer.observe(canvas);
-    resize();
-    draw(start);
+      draw(start);
+    };
+
+    initializationTimer = window.setTimeout(initialize, 64);
+
     return () => {
-      observer.disconnect();
+      disposed = true;
+      window.clearTimeout(initializationTimer);
       cancelAnimationFrame(frame);
-      renderer.destroy();
+      observer?.disconnect();
+      renderer?.destroy();
     };
   }, []);
 
