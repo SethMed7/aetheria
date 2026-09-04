@@ -16,12 +16,11 @@ import {
   Shuffle,
   Sparkles,
   Trash2,
-  Waves,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, PALETTES, PaletteId, RenderMode, randomSeed } from "@/lib/engine";
+import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, PALETTES, PaletteId, randomSeed } from "@/lib/engine";
 import { EXPORT_RESOLUTIONS, ExportResolution, exportWallpaper } from "@/lib/export";
 
 const STORAGE_KEY = "aetheria.saved-seeds.v1";
@@ -57,13 +56,6 @@ const PRESETS: Array<{ id: PresetId; note: string; params: Partial<AetheriaParam
   { id: "mono", note: "Graphic neutral", params: { curves: 76, turbulence: 0.6, spread: 0.8, thickness: 0.88, grain: 0.13 } },
 ];
 
-const MODES: Array<{ id: RenderMode; label: string }> = [
-  { id: "dots", label: "Dots" },
-  { id: "waves", label: "Waves" },
-  { id: "sheaths", label: "Sheaths" },
-  { id: "blend", label: "Blend" },
-];
-
 const DOT_A_POINTS = [
   [10, 4], [14, 4], [18, 4],
   [6, 8], [22, 8],
@@ -91,12 +83,16 @@ function isColor(value: string | null): value is string {
 
 function normalizeParams(value: Partial<AetheriaParams>): AetheriaParams {
   const palette = value.palette && value.palette in PALETTES ? value.palette : DEFAULT_PARAMS.palette;
-  const renderMode = MODES.some((mode) => mode.id === value.renderMode) ? value.renderMode! : DEFAULT_PARAMS.renderMode;
+  const merged = { ...DEFAULT_PARAMS, ...value };
   return {
-    ...DEFAULT_PARAMS,
-    ...value,
+    seed: merged.seed,
     palette,
-    renderMode,
+    curves: merged.curves,
+    turbulence: merged.turbulence,
+    spread: merged.spread,
+    thickness: merged.thickness,
+    grain: merged.grain,
+    blendMode: merged.blendMode,
     customColors: {
       ...DEFAULT_PARAMS.customColors,
       ...(value.customColors ?? {}),
@@ -108,7 +104,6 @@ function paramsFromUrl(): Partial<AetheriaParams> {
   const query = new URLSearchParams(window.location.search);
   const palette = query.get("palette") as PaletteId | null;
   const blend = query.get("blend");
-  const mode = query.get("mode") as RenderMode | null;
   const numberValue = (key: string, min: number, max: number) => {
     const queryValue = query.get(key);
     if (queryValue === null) return undefined;
@@ -130,7 +125,6 @@ function paramsFromUrl(): Partial<AetheriaParams> {
   if (thickness !== undefined) result.thickness = thickness;
   if (grain !== undefined) result.grain = grain;
   if (blend === "screen" || blend === "overlay") result.blendMode = blend;
-  if (MODES.some((option) => option.id === mode)) result.renderMode = mode!;
   const background = query.get("background");
   const primary = query.get("primary");
   const secondary = query.get("secondary");
@@ -281,7 +275,7 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
     <canvas
       ref={canvasRef}
       className="art-canvas"
-      aria-label={`Animated ${PALETTES[params.palette].name} ${params.renderMode} wallpaper preview`}
+      aria-label={`Animated ${PALETTES[params.palette].name} halftone dots wallpaper preview`}
       onPointerMove={(event) => {
         const bounds = event.currentTarget.getBoundingClientRect();
         pointer.current = {
@@ -296,7 +290,7 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
 function ExportMenu({ onExport, exporting }: { onExport: (resolution: ExportResolution) => void; exporting: string | null }) {
   return (
     <details className="export-menu">
-      <summary className="top-button primary-button">
+      <summary className="top-button primary-button" aria-label={exporting ? "Rendering wallpaper" : "Export wallpaper"}>
         {exporting ? <span className="spinner" aria-hidden="true" /> : <Download size={16} />}
         <span>{exporting ? "Rendering" : "Export"}</span>
         <ChevronDown size={14} />
@@ -331,7 +325,15 @@ export function Studio() {
       try {
         const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as SavedArtwork[];
         if (Array.isArray(stored)) {
-          const normalized = stored.slice(0, 24).map((item) => ({ ...item, params: normalizeParams(item.params) }));
+          const normalized = stored.slice(0, 24).map((item) => {
+            const legacyParams = item.params as AetheriaParams & { renderMode?: unknown };
+            const needsDotsPreview = Object.prototype.hasOwnProperty.call(legacyParams, "renderMode");
+            return {
+              ...item,
+              params: normalizeParams(legacyParams),
+              preview: needsDotsPreview ? undefined : item.preview,
+            };
+          });
           const missing = normalized.filter((item) => !item.preview);
           if (missing.length === 0) {
             setSaved(normalized);
@@ -446,7 +448,6 @@ export function Studio() {
       thickness: params.thickness.toFixed(2),
       grain: params.grain.toFixed(2),
       blend: params.blendMode,
-      mode: params.renderMode,
       background: params.customColors.background,
       primary: params.customColors.primary,
       secondary: params.customColors.secondary,
@@ -492,13 +493,13 @@ export function Studio() {
           Seed {params.seed}
         </div>
         <nav className="top-actions" aria-label="Artwork actions">
-          <button className="top-button icon-only-mobile" type="button" onClick={share}>
+          <button className="top-button icon-only-mobile" type="button" onClick={share} aria-label="Share artwork">
             <Copy size={16} /><span>Share</span>
           </button>
-          <button className={`top-button icon-only-mobile ${isSaved ? "is-active" : ""}`} type="button" onClick={saveCurrent}>
+          <button className={`top-button icon-only-mobile ${isSaved ? "is-active" : ""}`} type="button" onClick={saveCurrent} aria-label={isSaved ? "Artwork saved" : "Save artwork"}>
             {isSaved ? <Check size={16} /> : <Bookmark size={16} />}<span>{isSaved ? "Saved" : "Save"}</span>
           </button>
-          <button className="top-button gallery-button" type="button" onClick={() => setGalleryOpen(true)} aria-expanded={galleryOpen}>
+          <button className="top-button gallery-button" type="button" onClick={() => setGalleryOpen(true)} aria-label={`Open saved artwork gallery${saved.length > 0 ? `, ${saved.length} saved` : ""}`} aria-expanded={galleryOpen}>
             <PanelRight size={16} /><span>Gallery</span>{saved.length > 0 && <em>{saved.length}</em>}
           </button>
           <ExportMenu onExport={handleExport} exporting={exporting} />
@@ -555,25 +556,11 @@ export function Studio() {
           </div>
         </div>
 
-        <div className="mode-control">
-          <span className="mode-label">Field style</span>
-          <div role="group" aria-label="Field rendering style">
-            {MODES.map((mode) => {
-              const icon = mode.id === "dots" ? <CircleDot size={14} /> : mode.id === "waves" ? <Waves size={14} /> : mode.id === "sheaths" ? <Layers3 size={14} /> : <Blend size={14} />;
-              return (
-                <button key={mode.id} type="button" className={params.renderMode === mode.id ? "selected" : ""} onClick={() => update("renderMode", mode.id)} aria-pressed={params.renderMode === mode.id}>
-                  {icon}<span>{mode.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         <div className="controls-stack">
-          <SliderControl label="Mesh density" value={params.curves} min={50} max={100} step={1} icon={<Waves size={15} />} onChange={(value) => update("curves", value)} />
+          <SliderControl label="Dot density" value={params.curves} min={50} max={100} step={1} icon={<CircleDot size={15} />} onChange={(value) => update("curves", value)} />
           <SliderControl label="Turbulence" value={params.turbulence} min={0.1} max={1} step={0.01} icon={<Gauge size={15} />} onChange={(value) => update("turbulence", value)} display={`${Math.round(params.turbulence * 100)}%`} />
           <SliderControl label="Field spread" value={params.spread} min={0.2} max={1.25} step={0.01} icon={<Layers3 size={15} />} onChange={(value) => update("spread", value)} display={`${Math.round(params.spread * 100)}%`} />
-          <SliderControl label="Pattern scale" value={params.thickness} min={0.5} max={2.6} step={0.05} icon={<CircleDot size={15} />} onChange={(value) => update("thickness", value)} display={`${params.thickness.toFixed(2)}×`} />
+          <SliderControl label="Dot scale" value={params.thickness} min={0.5} max={2.6} step={0.05} icon={<CircleDot size={15} />} onChange={(value) => update("thickness", value)} display={`${params.thickness.toFixed(2)}×`} />
           <SliderControl label="Film grain" value={params.grain} min={0} max={0.28} step={0.01} icon={<Blend size={15} />} onChange={(value) => update("grain", value)} display={`${Math.round(params.grain * 100)}%`} />
         </div>
 
@@ -590,7 +577,7 @@ export function Studio() {
       </aside>
 
       <div className="corner-note" aria-hidden="true">
-        <span>{params.renderMode.toUpperCase()} FIELD</span>
+        <span>DOT FIELD</span>
         <i />
         <span>{params.curves} DENSITY</span>
       </div>
@@ -616,11 +603,11 @@ export function Studio() {
                   className={`saved-preview palette-${item.params.palette}`}
                   style={item.preview ? { backgroundImage: `url(${item.preview})` } : undefined}
                   role="img"
-                  aria-label={`${item.params.renderMode} preview for seed ${item.params.seed}`}
+                  aria-label={`Dots preview for seed ${item.params.seed}`}
                 />
                 <span className="saved-copy">
                   <strong>{PALETTES[item.params.palette].name}</strong>
-                  <small>Seed {item.params.seed} · {item.params.renderMode}</small>
+                  <small>Seed {item.params.seed} · dots</small>
                 </span>
               </button>
               <button className="delete-saved" type="button" onClick={() => deleteSaved(item.id)} aria-label={`Delete seed ${item.params.seed}`}><Trash2 size={15} /></button>

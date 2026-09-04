@@ -9,7 +9,6 @@ export type PaletteId =
   | "mono"
   | "custom";
 export type BlendMode = "screen" | "overlay";
-export type RenderMode = "dots" | "waves" | "sheaths" | "blend";
 
 export interface CustomColors {
   background: string;
@@ -26,7 +25,6 @@ export interface AetheriaParams {
   thickness: number;
   grain: number;
   blendMode: BlendMode;
-  renderMode: RenderMode;
   customColors: CustomColors;
 }
 
@@ -115,7 +113,6 @@ export const DEFAULT_PARAMS: AetheriaParams = {
   thickness: 1.08,
   grain: 0.08,
   blendMode: "screen",
-  renderMode: "dots",
   customColors: {
     background: "#dbe0e0",
     primary: "#00b8d1",
@@ -150,7 +147,6 @@ uniform float uSpread;
 uniform float uThickness;
 uniform float uGrain;
 uniform float uBlend;
-uniform float uMode;
 uniform vec3 uBase;
 uniform vec3 uPrimary;
 uniform vec3 uSecondary;
@@ -176,144 +172,37 @@ float softField(vec2 p, float phase, float time) {
   return clamp(0.5 + a * 0.16 + b * 0.145 + c * 0.105 + d * 0.07, 0.0, 1.0);
 }
 
-float terrainHeight(float x, float depth, float phase) {
-  float broad = sin(x * 2.05 + depth * 5.1 + phase) * 0.48;
-  float cross = sin(x * 5.4 - depth * 3.15 - phase * 1.7) * (0.12 + uTurbulence * 0.17);
-  float ripple = cos(x * 1.18 + depth * 9.4 + phase * 0.43) * 0.15;
-  return broad + cross + ripple;
-}
-
-vec3 waveMesh(vec2 uv, float phase, float layer) {
-  float x = (uv.x - 0.5) * 3.4 + layer * 0.37;
-  float nearEdge = 0.13 + layer * 0.075;
-  float run = 0.56;
-  float amplitude = mix(0.055, 0.13, uTurbulence) * mix(0.72, 1.18, uSpread);
-  float depth = (uv.y - nearEdge) / run;
-
-  // Invert the projected height field so every fragment can address the
-  // perspective mesh without allocating thousands of individual particles.
-  for (int iteration = 0; iteration < 3; iteration++) {
-    float height = terrainHeight(x, depth, phase + layer * 2.31);
-    float projected = nearEdge + depth * run + height * amplitude * (1.0 - depth * 0.22);
-    depth -= (projected - uv.y) / run;
-  }
-
-  float valid = step(0.0, depth) * step(depth, 1.0);
-  depth = clamp(depth, 0.0, 1.0);
-  float height = terrainHeight(x, depth, phase + layer * 2.31);
-  float xCount = mix(116.0, 190.0, uDensity) * mix(0.76, 1.08, depth);
-  float zCount = mix(34.0, 68.0, uDensity);
-  vec2 grid = vec2(
-    (uv.x + sin(depth * 5.7 + phase) * 0.009 * uTurbulence) * xCount,
-    depth * zCount + sin(x * 1.4 + phase) * 0.32
-  );
-  vec2 cell = fract(grid) - 0.5;
-  float pointDistance = length(cell);
-  float pointRadius = mix(0.16, 0.09, depth) * mix(0.72, 1.34, (uThickness - 0.5) / 2.1);
-  float aa = max(fwidth(pointDistance), 0.008);
-  float points = 1.0 - smoothstep(pointRadius - aa, pointRadius + aa, pointDistance);
-  float glow = exp(-pointDistance * pointDistance * 13.0) * 0.17;
-
-  float crest = smoothstep(-0.42, 0.72, height);
-  float distanceFade = mix(1.0, 0.46, depth);
-  float edgeFade = smoothstep(0.0, 0.055, depth) * smoothstep(1.0, 0.9, depth);
-  float sideFade = smoothstep(0.0, 0.055, uv.x) * smoothstep(1.0, 0.945, uv.x);
-  float energy = valid * edgeFade * sideFade * distanceFade * mix(0.58, 1.22, crest);
-  return vec3(points * energy, glow * energy, energy);
-}
-
-vec3 sheathRibbon(vec2 uv, float aspect, float phase) {
-  vec2 p = (uv - 0.5) * vec2(aspect, 1.0) * 2.0;
-  float tilt = -0.1 + sin(phase * 0.37) * 0.08;
-  mat2 rotation = mat2(cos(tilt), -sin(tilt), sin(tilt), cos(tilt));
-  p = rotation * p;
-
-  float t = p.x + sin(p.y * 2.2 + phase) * 0.055 * uTurbulence;
-  float center = sin(t * 1.42 + phase * 0.34) * 0.2
-    + sin(t * 2.86 - phase * 0.18) * 0.055;
-  float fold = sin(t * 1.24 - phase * 0.27);
-  float width = 0.035 + mix(0.095, 0.255, uSpread) * pow(abs(fold), 0.58);
-  float local = (p.y - center) / width;
-  float envelope = 1.0 - smoothstep(0.92, 1.04, abs(local));
-  float taper = 1.0 - smoothstep(1.43, 1.86, abs(t));
-  envelope *= taper;
-
-  float lineCount = mix(44.0, 88.0, uDensity);
-  float strandCoordinate = (local * 0.5 + 0.5) * lineCount
-    + sin(t * 2.5 + phase) * (0.7 + uTurbulence * 1.9);
-  float lineDistance = min(fract(strandCoordinate), 1.0 - fract(strandCoordinate));
-  float lineWidth = mix(0.018, 0.07, clamp((uThickness - 0.5) / 2.1, 0.0, 1.0));
-  float lineAa = max(fwidth(strandCoordinate) * 0.36, 0.012);
-  float strands = (1.0 - smoothstep(lineWidth, lineWidth + lineAa, lineDistance)) * envelope;
-  float glow = exp(-lineDistance * 18.0) * envelope * 0.16;
-  float highlight = mix(0.48, 1.15, smoothstep(-1.0, 0.72, local));
-  highlight *= mix(0.7, 1.12, smoothstep(-0.8, 0.8, fold));
-  return vec3(strands * highlight, glow * highlight, envelope);
-}
-
 void main() {
   vec2 uv = vUv;
   float aspect = uResolution.x / max(uResolution.y, 1.0);
   float phase = uSeed * 0.000071;
   vec2 p = (uv - 0.5) * vec2(aspect, 1.0) * 3.7;
   p += vec2(sin(phase * 1.7), cos(phase * 1.13)) * 1.9;
-  vec3 color;
-  if (uMode < 0.5) {
-    float field = softField(p, phase, uTime);
-    float companion = softField(p * 0.72 + vec2(2.4, -1.7), phase * 1.81, -uTime * 0.73);
-    field = clamp(field * 0.82 + companion * 0.27 - 0.045, 0.0, 1.0);
+  float field = softField(p, phase, uTime);
+  float companion = softField(p * 0.72 + vec2(2.4, -1.7), phase * 1.81, -uTime * 0.73);
+  field = clamp(field * 0.82 + companion * 0.27 - 0.045, 0.0, 1.0);
 
-    float cellSize = mix(7.2, 3.35, uDensity);
-    vec2 latticeWarp = vec2(
-      sin(p.y * 1.7 + field * 5.2 + phase),
-      cos(p.x * 1.45 - companion * 4.6 - phase)
-    );
-    vec2 lattice = gl_FragCoord.xy / cellSize + latticeWarp * (0.46 + uTurbulence * 2.35);
-    vec2 dotPoint = fract(lattice) - 0.5;
-    float dotDistance = length(dotPoint);
-    float tonalSpread = mix(0.78, 1.22, uSpread);
-    float radius = clamp((field - 0.345) * 1.24 * tonalSpread * uThickness, 0.0, 0.74);
-    float antialias = max(fwidth(dotDistance) * 0.92, 0.012);
-    float dots = 1.0 - smoothstep(radius - antialias, radius + antialias, dotDistance);
-    float solid = smoothstep(0.79, 0.91, field) * smoothstep(0.5, 0.67, uThickness);
-    float coverage = max(dots, solid);
-    float transitionBand = (1.0 - smoothstep(0.035, 0.19, abs(field - 0.57))) * dots;
-    float mist = smoothstep(0.54, 0.88, field) * 0.13;
-    float shadowCloud = (1.0 - smoothstep(0.16, 0.58, companion)) * (0.08 + uTurbulence * 0.08);
-    color = mix(uBase, uShade, shadowCloud);
-    color = mix(color, uPrimary, mist);
-    color = mix(color, uPrimary, coverage);
-    color = mix(color, uSecondary, transitionBand * 0.46);
-  } else if (uMode < 1.5) {
-    vec3 backMesh = waveMesh(uv, phase + uTime * 0.13, 1.0);
-    vec3 frontMesh = waveMesh(uv, phase - uTime * 0.1, 0.0);
-    vec3 mesh = max(backMesh * vec3(0.62, 0.8, 0.65), frontMesh);
-    vec3 night = mix(vec3(0.003, 0.012, 0.045), uShade * 0.14, 0.38);
-    vec3 signal = mix(max(uPrimary, vec3(0.035)), vec3(0.48, 0.82, 1.0), 0.2);
-    color = night;
-    color += uSecondary * mesh.y * 0.82;
-    color += signal * mesh.x * 1.35;
-    color += uSecondary * mesh.z * 0.025;
-  } else if (uMode < 2.5) {
-    vec3 ribbon = sheathRibbon(uv, aspect, phase + uTime * 0.09);
-    vec3 night = mix(vec3(0.002, 0.006, 0.035), uShade * 0.11, 0.32);
-    vec3 signal = mix(max(uPrimary, vec3(0.045)), vec3(0.72, 0.8, 1.0), 0.25);
-    color = night;
-    color += uSecondary * ribbon.y * 0.72;
-    color += signal * ribbon.x * 1.22;
-    color += uSecondary * ribbon.z * 0.018;
-  } else {
-    vec3 mesh = max(
-      waveMesh(uv, phase + uTime * 0.12, 0.0),
-      waveMesh(uv, phase - uTime * 0.08, 1.0) * 0.62
-    );
-    vec3 ribbon = sheathRibbon(uv, aspect, phase + 1.7 + uTime * 0.08);
-    vec3 night = mix(vec3(0.003, 0.009, 0.04), uShade * 0.13, 0.35);
-    vec3 signal = mix(max(uPrimary, vec3(0.04)), vec3(0.58, 0.8, 1.0), 0.2);
-    color = night;
-    color += uSecondary * (mesh.y * 0.6 + ribbon.y * 0.45);
-    color += signal * (mesh.x * 1.0 + ribbon.x * 0.74);
-  }
+  float cellSize = mix(7.2, 3.35, uDensity);
+  vec2 latticeWarp = vec2(
+    sin(p.y * 1.7 + field * 5.2 + phase),
+    cos(p.x * 1.45 - companion * 4.6 - phase)
+  );
+  vec2 lattice = gl_FragCoord.xy / cellSize + latticeWarp * (0.46 + uTurbulence * 2.35);
+  vec2 dotPoint = fract(lattice) - 0.5;
+  float dotDistance = length(dotPoint);
+  float tonalSpread = mix(0.78, 1.22, uSpread);
+  float radius = clamp((field - 0.345) * 1.24 * tonalSpread * uThickness, 0.0, 0.74);
+  float antialias = max(fwidth(dotDistance) * 0.92, 0.012);
+  float dots = 1.0 - smoothstep(radius - antialias, radius + antialias, dotDistance);
+  float solid = smoothstep(0.79, 0.91, field) * smoothstep(0.5, 0.67, uThickness);
+  float coverage = max(dots, solid);
+  float transitionBand = (1.0 - smoothstep(0.035, 0.19, abs(field - 0.57))) * dots;
+  float mist = smoothstep(0.54, 0.88, field) * 0.13;
+  float shadowCloud = (1.0 - smoothstep(0.16, 0.58, companion)) * (0.08 + uTurbulence * 0.08);
+  vec3 color = mix(uBase, uShade, shadowCloud);
+  color = mix(color, uPrimary, mist);
+  color = mix(color, uPrimary, coverage);
+  color = mix(color, uSecondary, transitionBand * 0.46);
 
   if (uBlend > 0.5) {
     color = mix(color, smoothstep(vec3(0.0), vec3(1.0), color * color * (3.0 - 2.0 * color)), 0.3);
@@ -369,7 +258,6 @@ type UniformName =
   | "uThickness"
   | "uGrain"
   | "uBlend"
-  | "uMode"
   | "uBase"
   | "uPrimary"
   | "uSecondary"
@@ -433,7 +321,6 @@ export class AetheriaRenderer {
       "uThickness",
       "uGrain",
       "uBlend",
-      "uMode",
       "uBase",
       "uPrimary",
       "uSecondary",
@@ -463,8 +350,6 @@ export class AetheriaRenderer {
     gl.uniform1f(this.uniforms.uThickness, params.thickness);
     gl.uniform1f(this.uniforms.uGrain, params.grain);
     gl.uniform1f(this.uniforms.uBlend, params.blendMode === "overlay" ? 1 : 0);
-    const modeValue = params.renderMode === "dots" ? 0 : params.renderMode === "waves" ? 1 : params.renderMode === "sheaths" ? 2 : 3;
-    gl.uniform1f(this.uniforms.uMode, modeValue);
     gl.uniform3fv(this.uniforms.uBase, palette.base);
     gl.uniform3fv(this.uniforms.uPrimary, palette.primary);
     gl.uniform3fv(this.uniforms.uSecondary, palette.secondary);

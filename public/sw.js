@@ -1,4 +1,4 @@
-const CACHE_NAME = "aetheria-v0.1.0";
+const CACHE_NAME = "aetheria-v0.1.0-dots";
 const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const APP_SHELL = `${scopePath}/`;
 const PRECACHE = [

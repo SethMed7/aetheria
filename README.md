@@ -10,7 +10,7 @@
 
 ## What it does
 
-- Renders four GPU-native styles: fluid halftone **Dots**, perspective particle-mesh **Waves**, contour-strand **Sheaths**, and a layered **Blend**.
+- Renders one focused GPU-native style: fluid, domain-warped halftone **Dots**.
 - Offers eight curated palettes plus independent canvas, primary, and accent color controls.
 - Shuffles instantly from deterministic seeds and reproduces every setup from a shareable URL.
 - Saves exact seeds and rendered previews in local browser storage.
@@ -61,13 +61,12 @@ The same engine powers the live canvas, deterministic gallery thumbnails, and of
 | Parameter | Purpose |
 | --- | --- |
 | `seed` | Deterministic composition source |
-| `curves` | Particle or strand density |
+| `curves` | Halftone dot density |
 | `turbulence` | Strength of field deformation |
 | `spread` | Width and tonal range |
-| `thickness` | Dot or strand scale |
+| `thickness` | Dot scale |
 | `grain` | Procedural dithering intensity |
 | `palette` | Curated or custom color system |
-| `renderMode` | `dots`, `waves`, `sheaths`, or `blend` |
 
 High-resolution PNG generation is isolated in [`lib/export.ts`](lib/export.ts). PWA metadata is defined in [`app/manifest.ts`](app/manifest.ts), with a versioned offline shell in [`public/sw.js`](public/sw.js).
 

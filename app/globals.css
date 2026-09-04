@@ -462,8 +462,7 @@ kbd {
   border-bottom: 1px solid var(--line);
 }
 
-.palette-heading,
-.mode-label {
+.palette-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -606,48 +605,6 @@ kbd {
 .custom-colors input[type="color"]::-moz-color-swatch {
   border: 1px solid oklch(0.98 0 0 / 0.42);
   border-radius: 50%;
-}
-
-.mode-control {
-  padding: 12px 1px;
-}
-
-.mode-label {
-  justify-content: flex-start;
-  margin-bottom: 8px;
-  color: oklch(0.9 0.01 220);
-  font-size: 11px;
-  font-weight: 540;
-}
-
-.mode-control > div {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 3px;
-  border-radius: 9px;
-  background: oklch(0.08 0.008 230 / 0.6);
-}
-
-.mode-control button {
-  display: inline-flex;
-  min-width: 0;
-  min-height: 34px;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 9px;
-  cursor: pointer;
-}
-
-.mode-control button.selected {
-  background: var(--surface-strong);
-  color: var(--ink);
 }
 
 .controls-stack {
