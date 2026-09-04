@@ -1,4 +1,4 @@
-import { AetheriaParams, AetheriaRenderer, PALETTES } from "@/lib/engine";
+import { AetheriaParams, AetheriaRenderer, drawArtworkText, PALETTES } from "@/lib/engine";
 
 export interface ExportResolution {
   id: string;
@@ -20,8 +20,21 @@ export async function exportWallpaper(params: AetheriaParams, resolution: Export
   canvas.height = resolution.height;
   const renderer = new AetheriaRenderer(canvas);
   renderer.render(params, { time: 0, sync: true });
+  const composed = document.createElement("canvas");
+  composed.width = resolution.width;
+  composed.height = resolution.height;
+  const context = composed.getContext("2d");
+  if (!context) {
+    renderer.destroy(true);
+    throw new Error("The text layer could not be created.");
+  }
+  context.drawImage(canvas, 0, 0, resolution.width, resolution.height);
+  drawArtworkText(context, params, resolution.width, resolution.height);
+  renderer.destroy(true);
+  canvas.width = 1;
+  canvas.height = 1;
   const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((result) => {
+    composed.toBlob((result) => {
       if (result) resolve(result);
       else reject(new Error("The PNG could not be encoded."));
     }, "image/png");
@@ -33,6 +46,5 @@ export async function exportWallpaper(params: AetheriaParams, resolution: Export
   anchor.download = `aetheria-${palette}-${params.seed}-${resolution.id}.png`;
   anchor.href = url;
   anchor.click();
-  renderer.destroy();
   setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }

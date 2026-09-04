@@ -16,11 +16,12 @@ import {
   Shuffle,
   Sparkles,
   Trash2,
+  Type,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, PALETTES, PaletteId, randomSeed } from "@/lib/engine";
+import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, drawArtworkText, PALETTES, PaletteId, randomSeed, TEXT_FONTS, TextFont } from "@/lib/engine";
 import { EXPORT_RESOLUTIONS, ExportResolution, exportWallpaper } from "@/lib/export";
 
 const STORAGE_KEY = "aetheria.saved-seeds.v1";
@@ -83,6 +84,7 @@ function isColor(value: string | null): value is string {
 
 function normalizeParams(value: Partial<AetheriaParams>): AetheriaParams {
   const palette = value.palette && value.palette in PALETTES ? value.palette : DEFAULT_PARAMS.palette;
+  const textFont = value.textFont && value.textFont in TEXT_FONTS ? value.textFont : DEFAULT_PARAMS.textFont;
   const merged = { ...DEFAULT_PARAMS, ...value };
   return {
     seed: merged.seed,
@@ -93,6 +95,9 @@ function normalizeParams(value: Partial<AetheriaParams>): AetheriaParams {
     thickness: merged.thickness,
     grain: merged.grain,
     blendMode: merged.blendMode,
+    text: typeof merged.text === "string" ? merged.text.slice(0, 48) : DEFAULT_PARAMS.text,
+    textFont,
+    textColor: typeof merged.textColor === "string" && isColor(merged.textColor) ? merged.textColor : DEFAULT_PARAMS.textColor,
     customColors: {
       ...DEFAULT_PARAMS.customColors,
       ...(value.customColors ?? {}),
@@ -104,6 +109,7 @@ function paramsFromUrl(): Partial<AetheriaParams> {
   const query = new URLSearchParams(window.location.search);
   const palette = query.get("palette") as PaletteId | null;
   const blend = query.get("blend");
+  const textFont = query.get("font") as TextFont | null;
   const numberValue = (key: string, min: number, max: number) => {
     const queryValue = query.get(key);
     if (queryValue === null) return undefined;
@@ -125,6 +131,10 @@ function paramsFromUrl(): Partial<AetheriaParams> {
   if (thickness !== undefined) result.thickness = thickness;
   if (grain !== undefined) result.grain = grain;
   if (blend === "screen" || blend === "overlay") result.blendMode = blend;
+  if (query.has("text")) result.text = (query.get("text") ?? "").slice(0, 48);
+  if (textFont && textFont in TEXT_FONTS) result.textFont = textFont;
+  const textColor = query.get("textColor");
+  if (isColor(textColor)) result.textColor = textColor;
   const background = query.get("background");
   const primary = query.get("primary");
   const secondary = query.get("secondary");
@@ -275,7 +285,7 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
     <canvas
       ref={canvasRef}
       className="art-canvas"
-      aria-label={`Animated ${PALETTES[params.palette].name} halftone dots wallpaper preview`}
+      aria-label={`Animated ${PALETTES[params.palette].name} halftone dots wallpaper preview${params.text.trim() ? ` with centered text ${params.text.trim()}` : ""}`}
       onPointerMove={(event) => {
         const bounds = event.currentTarget.getBoundingClientRect();
         pointer.current = {
@@ -285,6 +295,38 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
       }}
     />
   );
+}
+
+function ArtworkTextCanvas({ text, textColor, textFont }: Pick<AetheriaParams, "text" | "textColor" | "textFont">) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const draw = () => {
+      const bounds = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const width = Math.max(1, Math.round(bounds.width * dpr));
+      const height = Math.max(1, Math.round(bounds.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      } else {
+        context.clearRect(0, 0, width, height);
+      }
+      drawArtworkText(context, { text, textColor, textFont }, width, height);
+    };
+
+    const observer = new ResizeObserver(draw);
+    observer.observe(canvas);
+    draw();
+    return () => observer.disconnect();
+  }, [text, textColor, textFont]);
+
+  return <canvas ref={canvasRef} className="artwork-text-canvas" aria-hidden="true" />;
 }
 
 function ExportMenu({ onExport, exporting }: { onExport: (resolution: ExportResolution) => void; exporting: string | null }) {
@@ -326,12 +368,13 @@ export function Studio() {
         const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as SavedArtwork[];
         if (Array.isArray(stored)) {
           const normalized = stored.slice(0, 24).map((item) => {
-            const legacyParams = item.params as AetheriaParams & { renderMode?: unknown };
+            const legacyParams = item.params as Partial<AetheriaParams> & { renderMode?: unknown };
             const needsDotsPreview = Object.prototype.hasOwnProperty.call(legacyParams, "renderMode");
+            const needsTextPreview = typeof legacyParams.text !== "string" || !(legacyParams.textFont && legacyParams.textFont in TEXT_FONTS) || !isColor(legacyParams.textColor ?? null);
             return {
               ...item,
               params: normalizeParams(legacyParams),
-              preview: needsDotsPreview ? undefined : item.preview,
+              preview: needsDotsPreview || needsTextPreview ? undefined : item.preview,
             };
           });
           const missing = normalized.filter((item) => !item.preview);
@@ -451,6 +494,9 @@ export function Studio() {
       background: params.customColors.background,
       primary: params.customColors.primary,
       secondary: params.customColors.secondary,
+      text: params.text,
+      font: params.textFont,
+      textColor: params.textColor,
     });
     const url = `${window.location.origin}${window.location.pathname}?${query}`;
     window.history.replaceState(null, "", url);
@@ -482,6 +528,7 @@ export function Studio() {
       <h1 className="sr-only">Aetheria generative background studio</h1>
       <ArtCanvas params={params} />
       <div className="canvas-scrim" aria-hidden="true" />
+      <ArtworkTextCanvas text={params.text} textColor={params.textColor} textFont={params.textFont} />
 
       <header className="topbar">
         <Link href="/" className="brand" aria-label="Aetheria home">
@@ -556,6 +603,33 @@ export function Studio() {
           </div>
         </div>
 
+        <div className="text-control">
+          <div className="text-control-heading">
+            <span><Type size={15} /> Center text</span>
+            <label className="text-color" title="Text color">
+              <input type="color" value={params.textColor} onChange={(event) => update("textColor", event.target.value)} aria-label="Text color" />
+              <span>Color</span>
+            </label>
+          </div>
+          <input
+            className="text-input"
+            type="text"
+            value={params.text}
+            maxLength={48}
+            placeholder="Leave blank to hide"
+            aria-label="Centered artwork text"
+            onChange={(event) => update("text", event.target.value)}
+          />
+          <div className="font-options" role="group" aria-label="Text font">
+            {(Object.entries(TEXT_FONTS) as Array<[TextFont, (typeof TEXT_FONTS)[TextFont]]>).map(([id, font]) => (
+              <button key={id} type="button" className={params.textFont === id ? "selected" : ""} onClick={() => update("textFont", id)} aria-pressed={params.textFont === id}>
+                <span style={{ fontFamily: font.family, fontWeight: font.weight }}>Aa</span>
+                {font.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="controls-stack">
           <SliderControl label="Dot density" value={params.curves} min={50} max={100} step={1} icon={<CircleDot size={15} />} onChange={(value) => update("curves", value)} />
           <SliderControl label="Turbulence" value={params.turbulence} min={0.1} max={1} step={0.01} icon={<Gauge size={15} />} onChange={(value) => update("turbulence", value)} display={`${Math.round(params.turbulence * 100)}%`} />
@@ -593,7 +667,7 @@ export function Studio() {
             <div className="empty-gallery">
               <span><Bookmark size={22} /></span>
               <strong>Your gallery is quiet</strong>
-              <p>Save an atmosphere to keep its palette, seed, and field settings close.</p>
+              <p>Save an atmosphere to keep its text, palette, seed, and field settings close.</p>
               <button type="button" onClick={() => { saveCurrent(); setGalleryOpen(false); }}>Save current atmosphere</button>
             </div>
           ) : saved.map((item) => (
@@ -603,11 +677,11 @@ export function Studio() {
                   className={`saved-preview palette-${item.params.palette}`}
                   style={item.preview ? { backgroundImage: `url(${item.preview})` } : undefined}
                   role="img"
-                  aria-label={`Dots preview for seed ${item.params.seed}`}
+                  aria-label={`Dots preview for seed ${item.params.seed}${item.params.text.trim() ? ` with text ${item.params.text.trim()}` : ""}`}
                 />
                 <span className="saved-copy">
                   <strong>{PALETTES[item.params.palette].name}</strong>
-                  <small>Seed {item.params.seed} · dots</small>
+                  <small>Seed {item.params.seed} · {item.params.text.trim() || "No text"}</small>
                 </span>
               </button>
               <button className="delete-saved" type="button" onClick={() => deleteSaved(item.id)} aria-label={`Delete seed ${item.params.seed}`}><Trash2 size={15} /></button>

@@ -9,6 +9,14 @@ export type PaletteId =
   | "mono"
   | "custom";
 export type BlendMode = "screen" | "overlay";
+export type TextFont = "grotesk" | "serif" | "mono" | "rounded";
+
+export const TEXT_FONTS: Record<TextFont, { label: string; family: string; weight: number; tracking: number }> = {
+  grotesk: { label: "Grotesk", family: "Arial, Helvetica, sans-serif", weight: 800, tracking: 0.055 },
+  serif: { label: "Serif", family: "Georgia, 'Times New Roman', serif", weight: 700, tracking: 0.018 },
+  mono: { label: "Mono", family: "'SFMono-Regular', Menlo, Consolas, monospace", weight: 700, tracking: 0.075 },
+  rounded: { label: "Rounded", family: "'Arial Rounded MT Bold', 'Trebuchet MS', Arial, sans-serif", weight: 700, tracking: 0.04 },
+};
 
 export interface CustomColors {
   background: string;
@@ -26,6 +34,9 @@ export interface AetheriaParams {
   grain: number;
   blendMode: BlendMode;
   customColors: CustomColors;
+  text: string;
+  textFont: TextFont;
+  textColor: string;
 }
 
 type Rgb = readonly [number, number, number];
@@ -118,6 +129,9 @@ export const DEFAULT_PARAMS: AetheriaParams = {
     primary: "#00b8d1",
     secondary: "#006ec2",
   },
+  text: "DO MORE",
+  textFont: "grotesk",
+  textColor: "#ffffff",
 };
 
 const VERTEX_SHADER = `#version 300 es
@@ -293,6 +307,62 @@ function resolvePalette(params: AetheriaParams): AetheriaPalette {
   };
 }
 
+function colorIsLight(value: string) {
+  const rgb = hexToRgb(value, [1, 1, 1]);
+  const linear = rgb.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722 > 0.44;
+}
+
+export function drawArtworkText(
+  context: CanvasRenderingContext2D,
+  params: Pick<AetheriaParams, "text" | "textFont" | "textColor">,
+  width = context.canvas.width,
+  height = context.canvas.height,
+) {
+  const text = params.text.trim();
+  if (!text) return;
+
+  const font = TEXT_FONTS[params.textFont] ?? TEXT_FONTS.grotesk;
+  const glyphs = Array.from(text);
+  const maxWidth = width * 0.78;
+  let fontSize = Math.min(width * 0.068, height * 0.14);
+
+  const setFont = () => {
+    context.font = `${font.weight} ${fontSize}px ${font.family}`;
+  };
+  const measure = () => {
+    const tracking = fontSize * font.tracking;
+    return glyphs.reduce((sum, glyph) => sum + context.measureText(glyph).width, 0) + tracking * Math.max(0, glyphs.length - 1);
+  };
+
+  setFont();
+  const initialWidth = measure();
+  if (initialWidth > maxWidth) {
+    fontSize *= maxWidth / initialWidth;
+    setFont();
+  }
+
+  const tracking = fontSize * font.tracking;
+  const measuredWidth = measure();
+  const metrics = context.measureText(text);
+  const baseline = height * 0.5 + ((metrics.actualBoundingBoxAscent || fontSize * 0.72) - (metrics.actualBoundingBoxDescent || fontSize * 0.18)) * 0.5;
+  let cursor = (width - measuredWidth) * 0.5;
+
+  context.save();
+  context.font = `${font.weight} ${fontSize}px ${font.family}`;
+  context.textAlign = "left";
+  context.textBaseline = "alphabetic";
+  context.fillStyle = /^#[0-9a-f]{6}$/i.test(params.textColor) ? params.textColor : DEFAULT_PARAMS.textColor;
+  context.shadowColor = colorIsLight(params.textColor) ? "rgba(0, 0, 0, 0.34)" : "rgba(255, 255, 255, 0.28)";
+  context.shadowBlur = Math.max(4, fontSize * 0.09);
+  context.shadowOffsetY = Math.max(1, fontSize * 0.012);
+  for (const glyph of glyphs) {
+    context.fillText(glyph, cursor, baseline);
+    cursor += context.measureText(glyph).width + tracking;
+  }
+  context.restore();
+}
+
 export class AetheriaRenderer {
   private readonly gl: WebGL2RenderingContext;
   private readonly program: WebGLProgram;
@@ -374,9 +444,20 @@ export function createArtworkPreviews(
   canvas.width = width;
   canvas.height = height;
   const renderer = new AetheriaRenderer(canvas);
+  const composed = document.createElement("canvas");
+  composed.width = width;
+  composed.height = height;
+  const context = composed.getContext("2d");
+  if (!context) {
+    renderer.destroy(true);
+    throw new Error("Unable to create the artwork preview canvas.");
+  }
   const previews = artworks.map((params) => {
     renderer.render(params, { time: 0, sync: true });
-    return canvas.toDataURL("image/webp", 0.84);
+    context.clearRect(0, 0, width, height);
+    context.drawImage(canvas, 0, 0, width, height);
+    drawArtworkText(context, params, width, height);
+    return composed.toDataURL("image/webp", 0.84);
   });
   renderer.destroy(true);
   return previews;

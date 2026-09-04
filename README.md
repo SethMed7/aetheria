@@ -12,6 +12,7 @@
 
 - Renders one focused GPU-native style: fluid, domain-warped halftone **Dots**.
 - Offers eight curated palettes plus independent canvas, primary, and accent color controls.
+- Adds centered custom typography with four export-safe font styles and an independent text color.
 - Shuffles instantly from deterministic seeds and reproduces every setup from a shareable URL.
 - Saves exact seeds and rendered previews in local browser storage.
 - Exports lossless 4K, 5K, and 9:16 mobile PNGs through an off-screen WebGL buffer.
@@ -67,6 +68,9 @@ The same engine powers the live canvas, deterministic gallery thumbnails, and of
 | `thickness` | Dot scale |
 | `grain` | Procedural dithering intensity |
 | `palette` | Curated or custom color system |
+| `text` | Optional centered title, defaulting to `DO MORE` |
+| `textFont` | Grotesk, serif, mono, or rounded font style |
+| `textColor` | Independent title color |
 
 High-resolution PNG generation is isolated in [`lib/export.ts`](lib/export.ts). PWA metadata is defined in [`app/manifest.ts`](app/manifest.ts), with a versioned offline shell in [`public/sw.js`](public/sw.js).
 
