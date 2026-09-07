@@ -2,7 +2,8 @@
 node_modules
 out
 .vercel
-.impeccable
+.impeccable/*
+!.impeccable/design.json
 coverage
 .DS_Store
 *.log

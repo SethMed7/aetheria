@@ -4,8 +4,23 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   applicationName: "Aetheria",
-  title: "Aetheria — Generative Background Studio",
-  description: "Shape, save, and export cinematic procedural backgrounds from a fast WebGL canvas.",
+  metadataBase: new URL("https://aetheria.sethmedina.com"),
+  title: {
+    default: "Aetheria | Generative Background Studio",
+    template: "%s | Aetheria",
+  },
+  description:
+    "Download free 4K procedural backgrounds or shape your own in an open-source WebGL studio.",
+  authors: [{ name: "Seth Medina", url: "https://sethmedina.com" }],
+  creator: "Seth Medina",
+  category: "design",
+  keywords: [
+    "generative art",
+    "procedural backgrounds",
+    "WebGL",
+    "wallpaper generator",
+    "open source design tool",
+  ],
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -15,16 +30,22 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "Aetheria — Generative Background Studio",
-    description: "A live generative instrument for cinematic backgrounds.",
+    title: "Aetheria | Generative Background Studio",
+    description:
+      "Free 4K procedural backgrounds and a local-first WebGL studio.",
+    url: "/",
     siteName: "Aetheria",
     type: "website",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
 export const viewport: Viewport = {
-  colorScheme: "dark",
-  themeColor: "#05070d",
+  colorScheme: "light dark",
+  themeColor: "#e8eeee",
   viewportFit: "cover",
 };
 

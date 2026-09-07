@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a focused improvement to Aetheria
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Aetheria stays intentionally focused. Explain the creative problem before proposing the interface.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What creative problem would this solve?
+      description: Describe the person, task, and limitation in the current workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Explain the smallest useful change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note any workflow or implementation alternatives you tried.
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples or references
+      description: Add sketches, links, or existing tools that clarify the idea.
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Product fit
+      options:
+        - label: The artwork remains visually primary.
+          required: true
+        - label: The proposal can work without an account or required cloud service.
+          required: true
+        - label: I searched existing issues for a similar proposal.
+          required: true

@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible problem in Aetheria
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Security vulnerabilities belong in a private security advisory, not a public issue.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open...
+        2. Change...
+        3. Export...
+    validations:
+      required: true
+  - type: input
+    id: share-url
+    attributes:
+      label: Shareable Aetheria URL
+      description: Include the generated URL if the issue depends on a seed or settings.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Safari 20.0
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: macOS 26.5
+    validations:
+      required: true
+  - type: dropdown
+    id: webgl
+    attributes:
+      label: Is WebGL 2 available?
+      options:
+        - "Yes"
+        - "No"
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add screenshots, recordings, console errors, or GPU details when useful.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: This report does not disclose a security vulnerability.
+          required: true

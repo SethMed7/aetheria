@@ -2,11 +2,10 @@
   <img src="public/icons/aetheria-mark.svg" width="84" height="84" alt="Aetheria dot-matrix A" />
   <h1>Aetheria</h1>
   <p><strong>Generative backgrounds, tuned by hand.</strong></p>
-  <p>A fast, installable WebGL studio for creating cinematic backgrounds for apps, websites, presentations, and desktops.</p>
-  <p><code>v0.1.0</code> · Next.js 16 · React 19 · WebGL 2 · Bun</p>
+  <p>A free, installable WebGL studio for cinematic backgrounds.</p>
+  <p><a href="https://aetheria.sethmedina.com"><strong>Open Aetheria</strong></a></p>
+  <p><code>v0.2.0</code> · Next.js 16 · React 19 · WebGL 2 · Bun · MIT</p>
 </div>
-
-![Aetheria background studio](public/aetheria-preview.webp)
 
 ## What it does
 
@@ -18,9 +17,19 @@
 - Exports lossless 4K, 5K, and 9:16 mobile PNGs through an off-screen WebGL buffer.
 - Installs as a standalone PWA and keeps the studio shell available offline after the first visit.
 
+Everything runs locally in the browser. Aetheria has no accounts, uploads, tracking, or server-side rendering pipeline.
+
+## Use Aetheria
+
+Visit **[aetheria.sethmedina.com](https://aetheria.sethmedina.com)** to:
+
+1. Download one of six free 4K starter backgrounds.
+2. Open a starter in the studio and make it your own.
+3. Export a desktop or mobile PNG without uploading your work.
+
 ## Install the app
 
-Visit **[Aetheria](https://sethmed7.github.io/aetheria/)** over HTTPS, then use your browser’s install action:
+Open the [Aetheria studio](https://aetheria.sethmedina.com/studio) over HTTPS, then use your browser’s install action:
 
 - **Chrome / Edge:** click the install icon in the address bar or choose **Install Aetheria** from the browser menu.
 - **Safari on macOS:** choose **File → Add to Dock**.
@@ -38,22 +47,22 @@ bun dev
 
 Open the local URL printed by Next.js. Press `Space` to shuffle and `G` to open the saved gallery.
 
-## Build and verify
+## Verify
 
 ```bash
 bun run lint
 bun run build
 ```
 
-To generate the static PWA used by GitHub Pages:
+To generate a portable static build:
 
 ```bash
 STATIC_EXPORT=true NEXT_PUBLIC_BASE_PATH=/aetheria bun run build
 ```
 
-The export is written to `out/`. Every push to `main` runs lint, builds this export, and deploys it through GitHub Actions.
+The export is written to `out/`. The production app is configured through [`railway.json`](railway.json). Pull requests run lint plus both production and static builds in GitHub Actions.
 
-## Rendering architecture
+## Architecture
 
 The rendering engine lives in [`lib/engine.ts`](lib/engine.ts). A persistent WebGL 2 context draws a single full-screen triangle and evaluates the selected composition in one fragment-shader pass. Parameter changes update uniforms instead of rebuilding the renderer, keeping sliders and shuffle responsive.
 
@@ -78,6 +87,12 @@ High-resolution PNG generation is isolated in [`lib/export.ts`](lib/export.ts). 
 
 Aetheria requires WebGL 2 and works best in current Chrome, Edge, Firefox, and Safari. It respects reduced-motion preferences and displays a clear compatibility message when WebGL 2 is unavailable.
 
+## Contributing
+
+Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request. Use GitHub Issues for reproducible bugs and focused feature proposals.
+
+For security issues, follow the private reporting process in [`SECURITY.md`](SECURITY.md).
+
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © Seth Medina.

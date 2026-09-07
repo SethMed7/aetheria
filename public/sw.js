@@ -1,12 +1,12 @@
-const CACHE_NAME = "aetheria-v0.1.0-text";
+const CACHE_NAME = "aetheria-v0.2.0-launch";
 const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, "");
-const APP_SHELL = `${scopePath}/`;
+const LANDING_PAGE = `${scopePath}/`;
+const APP_SHELL = `${scopePath}/studio/`;
 const PRECACHE = [
+  LANDING_PAGE,
   APP_SHELL,
   `${scopePath}/manifest.webmanifest`,
   `${scopePath}/icons/aetheria-mark.svg`,
-  `${scopePath}/icons/icon-192.png`,
-  `${scopePath}/icons/icon-512.png`,
 ];
 
 self.addEventListener("install", (event) => {
@@ -41,10 +41,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(APP_SHELL, response.clone()));
+          if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
           return response;
         })
-        .catch(() => caches.match(APP_SHELL)),
+        .catch(() => caches.match(request).then((cached) => cached || caches.match(APP_SHELL))),
     );
   }
 });

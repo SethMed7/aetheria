@@ -6,11 +6,11 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    id: `${basePath}/`,
-    name: "Aetheria — Generative Background Studio",
+    id: `${basePath}/studio/`,
+    name: "Aetheria | Generative Background Studio",
     short_name: "Aetheria",
     description: "Shape, save, and export cinematic procedural backgrounds.",
-    start_url: `${basePath}/`,
+    start_url: `${basePath}/studio/`,
     scope: `${basePath}/`,
     display: "standalone",
     background_color: "#05070d",
@@ -25,31 +25,10 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
       {
-        src: `${basePath}/icons/icon-192.png`,
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: `${basePath}/icons/icon-512.png`,
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: `${basePath}/icons/icon-maskable-512.png`,
-        sizes: "512x512",
-        type: "image/png",
+        src: `${basePath}/icons/aetheria-mark.svg`,
+        sizes: "any",
+        type: "image/svg+xml",
         purpose: "maskable",
-      },
-    ],
-    screenshots: [
-      {
-        src: `${basePath}/aetheria-preview.webp`,
-        sizes: "1440x900",
-        type: "image/webp",
-        form_factor: "wide",
-        label: "Aetheria generative background studio",
       },
     ],
   };

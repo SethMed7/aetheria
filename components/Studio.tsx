@@ -23,6 +23,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, drawArtworkText, PALETTES, PaletteId, randomSeed, TEXT_FONTS, TextFont } from "@/lib/engine";
 import { EXPORT_RESOLUTIONS, ExportResolution, exportWallpaper } from "@/lib/export";
+import { PRESET_COLORS, PRESETS, PresetId } from "@/lib/presets";
+import { AetheriaMark } from "@/components/AetheriaMark";
 
 const STORAGE_KEY = "aetheria.saved-seeds.v1";
 
@@ -32,47 +34,6 @@ type SavedArtwork = {
   params: AetheriaParams;
   preview?: string;
 };
-
-type PresetId = Exclude<PaletteId, "custom">;
-
-const PRESET_COLORS: Record<PresetId, CustomColors> = {
-  obsidian: { background: "#dbe0e0", primary: "#00b8d1", secondary: "#006ec2" },
-  solar: { background: "#e0d6c2", primary: "#f06414", secondary: "#b81f12" },
-  violet: { background: "#c9ccdb", primary: "#843bea", secondary: "#216bdb" },
-  emerald: { background: "#c9d9d1", primary: "#009e78", secondary: "#006679" },
-  coral: { background: "#e6d1d1", primary: "#f24059", secondary: "#a81542" },
-  cobalt: { background: "#cfd6e6", primary: "#1459f2", secondary: "#261fa6" },
-  citron: { background: "#dbdfbf", primary: "#a1e00d", secondary: "#29872e" },
-  mono: { background: "#dededb", primary: "#292b2e", secondary: "#6b6e70" },
-};
-
-const PRESETS: Array<{ id: PresetId; note: string; params: Partial<AetheriaParams> }> = [
-  { id: "obsidian", note: "Cyan halftone", params: { curves: 78, turbulence: 0.64, spread: 0.82, thickness: 1.08, grain: 0.08 } },
-  { id: "solar", note: "Amber diffusion", params: { curves: 68, turbulence: 0.72, spread: 0.74, thickness: 1.22, grain: 0.1 } },
-  { id: "violet", note: "Ultraviolet mesh", params: { curves: 86, turbulence: 0.78, spread: 0.9, thickness: 0.96, grain: 0.07 } },
-  { id: "emerald", note: "Mineral field", params: { curves: 62, turbulence: 0.48, spread: 0.78, thickness: 1.18, grain: 0.09 } },
-  { id: "coral", note: "Warm pigment", params: { curves: 72, turbulence: 0.58, spread: 0.88, thickness: 1.12, grain: 0.08 } },
-  { id: "cobalt", note: "Deep electric", params: { curves: 84, turbulence: 0.7, spread: 0.76, thickness: 0.92, grain: 0.07 } },
-  { id: "citron", note: "Acid botanical", params: { curves: 66, turbulence: 0.52, spread: 0.84, thickness: 1.14, grain: 0.09 } },
-  { id: "mono", note: "Graphic neutral", params: { curves: 76, turbulence: 0.6, spread: 0.8, thickness: 0.88, grain: 0.13 } },
-];
-
-const DOT_A_POINTS = [
-  [10, 4], [14, 4], [18, 4],
-  [6, 8], [22, 8],
-  [6, 12], [22, 12],
-  [6, 16], [10, 16], [14, 16], [18, 16], [22, 16],
-  [6, 20], [22, 20],
-  [6, 24], [22, 24],
-] as const;
-
-function AetheriaMark({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      {DOT_A_POINTS.map(([cx, cy]) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.45" fill="currentColor" />)}
-    </svg>
-  );
-}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

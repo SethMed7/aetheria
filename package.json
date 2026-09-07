@@ -1,7 +1,7 @@
 {
   "name": "aetheria",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "private": false,
   "description": "A fast, installable WebGL studio for procedural backgrounds.",
   "license": "MIT",
   "repository": {

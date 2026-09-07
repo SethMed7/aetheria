@@ -18,7 +18,7 @@ Aetheria turns a compact mathematical parameter set into high-resolution, atmosp
 
 ## Positioning
 
-A live generative instrument that makes cinematic, mathematically structured backgrounds feel immediate and controllable.
+A free, open-source generative instrument that makes cinematic, mathematically structured backgrounds feel immediate and controllable. The public landing page offers useful 4K artwork before asking visitors to open the studio.
 
 ## Brand Personality
 
@@ -35,6 +35,8 @@ The supplied visual reference establishes the direction: soft silver atmosphere,
 - Balance creative surprise with reproducibility through seeds and URLs.
 - Reveal complexity progressively instead of presenting a graphics editor.
 - Treat export as a first-class creative outcome, not a utility afterthought.
+- Keep generation, saved work, and exports local to the browser with no required account.
+- Treat the source code as part of the product: readable, remixable, and MIT licensed.
 
 ## Accessibility & Inclusion
 
