@@ -9,12 +9,14 @@
 
 ## What it does
 
-- Renders one focused GPU-native style: fluid, domain-warped halftone **Dots**.
+- Renders seven GPU-native styles: **Dots, Discs, Capsules, Tiles, Cells, Ribbons, and Terraces**.
+- Combines each style with organic, sweeping, radial, or ordered flow, plus position, rotation, zoom, wave spacing, and wave height controls.
 - Offers eight curated palettes plus independent canvas, primary, and accent color controls.
 - Adds centered custom typography with four export-safe font styles and an independent text color.
 - Shuffles instantly from deterministic seeds and reproduces every setup from a shareable URL.
 - Saves exact seeds and rendered previews in local browser storage.
 - Exports lossless 4K, 5K, and 9:16 mobile PNGs through an off-screen WebGL buffer.
+- Collapses the editor to reveal the canvas, with a clean full-window preview of the exact PNG before downloading.
 - Installs as a standalone PWA and keeps the studio shell available offline after the first visit.
 
 Everything runs locally in the browser. Aetheria has no accounts, uploads, tracking, or server-side rendering pipeline.
@@ -45,12 +47,15 @@ bun install
 bun dev
 ```
 
-Open the local URL printed by Next.js. Press `Space` to shuffle and `G` to open the saved gallery.
+Open the local URL printed by Next.js. Press `Space` to shuffle, `G` to open the saved gallery, and `H` to hide or show the editor. `Escape` closes the export preview or restores the editor. Shortcuts stay inactive while entering text or reviewing an export.
+
+Use **Pattern**, **Color**, and **Text** to switch editor sections. **Preview & export** renders the selected desktop or mobile PNG at its full resolution. The preview fits the complete image on screen; **Download PNG** saves that same file. Studio artwork and export previews are still images rendered from the same reproducible fixed frame. The canvas redraws only when settings or its size change. Original dot sizing is preserved for existing seeds, so the export preview is the reference for final dot density.
 
 ## Verify
 
 ```bash
 bun run lint
+bun run test
 bun run build
 ```
 
@@ -70,6 +75,11 @@ The same engine powers the live canvas, deterministic gallery thumbnails, and of
 
 | Parameter | Purpose |
 | --- | --- |
+| `style` / `flow` | Independent shape and composition families |
+| `offsetX` / `offsetY` | Horizontal and vertical placement |
+| `rotation` / `zoom` | Overall orientation and scale |
+| `wavelength` / `amplitude` | Wave spacing and deformation height |
+| `relief` | Shading depth for geometric and layered styles |
 | `seed` | Deterministic composition source |
 | `curves` | Halftone dot density |
 | `turbulence` | Strength of field deformation |
@@ -81,7 +91,7 @@ The same engine powers the live canvas, deterministic gallery thumbnails, and of
 | `textFont` | Grotesk, serif, mono, or rounded font style |
 | `textColor` | Independent title color |
 
-High-resolution PNG generation is isolated in [`lib/export.ts`](lib/export.ts). PWA metadata is defined in [`app/manifest.ts`](app/manifest.ts), with a versioned offline shell in [`public/sw.js`](public/sw.js).
+High-resolution PNG generation is isolated in [`lib/export.ts`](lib/export.ts). [`lib/params.ts`](lib/params.ts) normalizes saved artwork and share links; legacy settings default to Dots with organic flow. PWA metadata is defined in [`app/manifest.ts`](app/manifest.ts), with a versioned offline shell in [`public/sw.js`](public/sw.js).
 
 ## Browser support
 

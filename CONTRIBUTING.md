@@ -1,6 +1,6 @@
 # Contributing to Aetheria
 
-Thank you for helping improve Aetheria. The project stays intentionally focused: one expressive procedural style, immediate controls, deterministic seeds, and local browser exports.
+Thank you for helping improve Aetheria. The project stays intentionally focused: expressive procedural artwork, immediate controls, deterministic seeds, and local browser exports.
 
 ## Before you start
 
@@ -31,6 +31,7 @@ Run these before opening a pull request:
 
 ```bash
 bun run lint
+bun run test
 bun run build
 STATIC_EXPORT=true NEXT_PUBLIC_BASE_PATH=/aetheria bun run build
 ```

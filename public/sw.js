@@ -1,4 +1,4 @@
-const CACHE_NAME = "aetheria-v0.2.0-launch";
+const CACHE_NAME = "aetheria-studio-stills-v1";
 const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const LANDING_PAGE = `${scopePath}/`;
 const APP_SHELL = `${scopePath}/studio/`;

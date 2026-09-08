@@ -3,13 +3,19 @@
 import {
   Bookmark,
   Check,
-  ChevronDown,
   Blend,
   CircleDot,
   Copy,
-  Download,
+  Expand,
+  PanelLeftClose,
+  SlidersHorizontal,
+  MoveHorizontal,
+  MoveVertical,
+  RotateCcw,
+  RotateCw,
+  ZoomIn,
+  Waves,
   Gauge,
-  ImageDown,
   Layers3,
   Palette,
   PanelRight,
@@ -21,8 +27,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, drawArtworkText, PALETTES, PaletteId, randomSeed, TEXT_FONTS, TextFont } from "@/lib/engine";
-import { EXPORT_RESOLUTIONS, ExportResolution, exportWallpaper } from "@/lib/export";
+import { AetheriaParams, AetheriaRenderer, createArtworkPreviews, CustomColors, DEFAULT_PARAMS, drawArtworkText, PALETTES, ARTWORK_STYLES, FLOW_MODES, randomSeed, TEXT_FONTS, TextFont } from "@/lib/engine";
+import { normalizeParams, paramsFromQuery, paramsToQuery, isColor } from "@/lib/params";
+import { ExportPreview } from "./ExportPreview";
+import { PatternControls } from "./PatternControls";
 import { PRESET_COLORS, PRESETS, PresetId } from "@/lib/presets";
 import { AetheriaMark } from "@/components/AetheriaMark";
 
@@ -37,76 +45,6 @@ type SavedArtwork = {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function isColor(value: string | null): value is string {
-  return Boolean(value && /^#[0-9a-f]{6}$/i.test(value));
-}
-
-function normalizeParams(value: Partial<AetheriaParams>): AetheriaParams {
-  const palette = value.palette && value.palette in PALETTES ? value.palette : DEFAULT_PARAMS.palette;
-  const textFont = value.textFont && value.textFont in TEXT_FONTS ? value.textFont : DEFAULT_PARAMS.textFont;
-  const merged = { ...DEFAULT_PARAMS, ...value };
-  return {
-    seed: merged.seed,
-    palette,
-    curves: merged.curves,
-    turbulence: merged.turbulence,
-    spread: merged.spread,
-    thickness: merged.thickness,
-    grain: merged.grain,
-    blendMode: merged.blendMode,
-    text: typeof merged.text === "string" ? merged.text.slice(0, 48) : DEFAULT_PARAMS.text,
-    textFont,
-    textColor: typeof merged.textColor === "string" && isColor(merged.textColor) ? merged.textColor : DEFAULT_PARAMS.textColor,
-    customColors: {
-      ...DEFAULT_PARAMS.customColors,
-      ...(value.customColors ?? {}),
-    },
-  };
-}
-
-function paramsFromUrl(): Partial<AetheriaParams> {
-  const query = new URLSearchParams(window.location.search);
-  const palette = query.get("palette") as PaletteId | null;
-  const blend = query.get("blend");
-  const textFont = query.get("font") as TextFont | null;
-  const numberValue = (key: string, min: number, max: number) => {
-    const queryValue = query.get(key);
-    if (queryValue === null) return undefined;
-    const raw = Number(queryValue);
-    return Number.isFinite(raw) ? clamp(raw, min, max) : undefined;
-  };
-  const result: Partial<AetheriaParams> = {};
-  const seed = numberValue("seed", 1, 999999999);
-  const curves = numberValue("curves", 50, 100);
-  const turbulence = numberValue("turbulence", 0.1, 1);
-  const spread = numberValue("spread", 0.2, 1.25);
-  const thickness = numberValue("thickness", 0.5, 2.6);
-  const grain = numberValue("grain", 0, 0.28);
-  if (seed !== undefined) result.seed = seed;
-  if (palette && palette in PALETTES) result.palette = palette;
-  if (curves !== undefined) result.curves = curves;
-  if (turbulence !== undefined) result.turbulence = turbulence;
-  if (spread !== undefined) result.spread = spread;
-  if (thickness !== undefined) result.thickness = thickness;
-  if (grain !== undefined) result.grain = grain;
-  if (blend === "screen" || blend === "overlay") result.blendMode = blend;
-  if (query.has("text")) result.text = (query.get("text") ?? "").slice(0, 48);
-  if (textFont && textFont in TEXT_FONTS) result.textFont = textFont;
-  const textColor = query.get("textColor");
-  if (isColor(textColor)) result.textColor = textColor;
-  const background = query.get("background");
-  const primary = query.get("primary");
-  const secondary = query.get("secondary");
-  if (isColor(background) || isColor(primary) || isColor(secondary)) {
-    result.customColors = {
-      background: isColor(background) ? background : DEFAULT_PARAMS.customColors.background,
-      primary: isColor(primary) ? primary : DEFAULT_PARAMS.customColors.primary,
-      secondary: isColor(secondary) ? secondary : DEFAULT_PARAMS.customColors.secondary,
-    };
-  }
-  return result;
 }
 
 function formatValue(value: number, suffix = "") {
@@ -156,14 +94,13 @@ function SliderControl({
 
 function ArtCanvas({ params }: { params: AetheriaParams }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pointer = useRef({ x: 0, y: 0 });
   const paramsRef = useRef(params);
-  const needsRender = useRef(true);
+  const requestDrawRef = useRef<() => void>(() => {});
   const [renderError, setRenderError] = useState(false);
 
   useEffect(() => {
     paramsRef.current = params;
-    needsRender.current = true;
+    requestDrawRef.current();
   }, [params]);
 
   useEffect(() => {
@@ -171,11 +108,29 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
     if (!canvas) return;
     let renderer: AetheriaRenderer | null = null;
     let observer: ResizeObserver | null = null;
-    let initializationTimer = 0;
     let frame = 0;
     let disposed = false;
 
-    const initialize = () => {
+    const draw = () => {
+      frame = 0;
+      if (disposed || !renderer) return;
+      const bounds = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const width = Math.max(1, Math.round(bounds.width * dpr));
+      const height = Math.max(1, Math.round(bounds.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      renderer.render(paramsRef.current, { time: 0 });
+    };
+
+    // Coalesce edits and resizes into one frame; idle artwork does no rendering work.
+    const requestDraw = () => {
+      if (!disposed && !frame) frame = requestAnimationFrame(draw);
+    };
+
+    const initializationTimer = window.setTimeout(() => {
       if (disposed) return;
       try {
         renderer = new AetheriaRenderer(canvas);
@@ -183,48 +138,15 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
         setRenderError(true);
         return;
       }
-      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      let lastFrame = 0;
-      const start = performance.now();
-
-      const resize = () => {
-        const bounds = canvas.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        const nextWidth = Math.max(1, Math.round(bounds.width * dpr));
-        const nextHeight = Math.max(1, Math.round(bounds.height * dpr));
-        if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
-          canvas.width = nextWidth;
-          canvas.height = nextHeight;
-          needsRender.current = true;
-        }
-      };
-
-      const draw = (now: number) => {
-        const animationDue = document.visibilityState === "visible" && !reducedMotion && now - lastFrame > 32;
-        if (renderer && (needsRender.current || animationDue)) {
-          const elapsed = reducedMotion ? 0 : (now - start) / 1000;
-          renderer.render(paramsRef.current, {
-            time: elapsed + pointer.current.x * 0.34 + pointer.current.y * 0.12,
-          });
-          needsRender.current = false;
-          lastFrame = now;
-        }
-        frame = requestAnimationFrame(draw);
-      };
-
-      observer = new ResizeObserver(() => {
-        resize();
-        needsRender.current = true;
-      });
+      requestDrawRef.current = requestDraw;
+      observer = new ResizeObserver(requestDraw);
       observer.observe(canvas);
-      resize();
-      draw(start);
-    };
-
-    initializationTimer = window.setTimeout(initialize, 64);
+      requestDraw();
+    }, 64);
 
     return () => {
       disposed = true;
+      requestDrawRef.current = () => {};
       window.clearTimeout(initializationTimer);
       cancelAnimationFrame(frame);
       observer?.disconnect();
@@ -246,14 +168,8 @@ function ArtCanvas({ params }: { params: AetheriaParams }) {
     <canvas
       ref={canvasRef}
       className="art-canvas"
-      aria-label={`Animated ${PALETTES[params.palette].name} halftone dots wallpaper preview${params.text.trim() ? ` with centered text ${params.text.trim()}` : ""}`}
-      onPointerMove={(event) => {
-        const bounds = event.currentTarget.getBoundingClientRect();
-        pointer.current = {
-          x: event.clientX / bounds.width - 0.5,
-          y: event.clientY / bounds.height - 0.5,
-        };
-      }}
+      aria-label={`Static ${PALETTES[params.palette].name} ${ARTWORK_STYLES[params.style].label.toLowerCase()} wallpaper preview${params.text.trim() ? ` with centered text ${params.text.trim()}` : ""}`}
+
     />
   );
 }
@@ -290,45 +206,24 @@ function ArtworkTextCanvas({ text, textColor, textFont }: Pick<AetheriaParams, "
   return <canvas ref={canvasRef} className="artwork-text-canvas" aria-hidden="true" />;
 }
 
-function ExportMenu({ onExport, exporting }: { onExport: (resolution: ExportResolution) => void; exporting: string | null }) {
-  return (
-    <details className="export-menu">
-      <summary className="top-button primary-button" aria-label={exporting ? "Rendering wallpaper" : "Export wallpaper"}>
-        {exporting ? <span className="spinner" aria-hidden="true" /> : <Download size={16} />}
-        <span>{exporting ? "Rendering" : "Export"}</span>
-        <ChevronDown size={14} />
-      </summary>
-      <div className="export-popover">
-        <div className="popover-heading">
-          <span>Export PNG</span>
-          <span>Lossless</span>
-        </div>
-        {EXPORT_RESOLUTIONS.map((resolution) => (
-          <button key={resolution.id} type="button" disabled={Boolean(exporting)} onClick={() => onExport(resolution)}>
-            <span className="export-icon"><ImageDown size={16} /></span>
-            <span><strong>{resolution.label}</strong><small>{resolution.detail}</small></span>
-            {exporting === resolution.id && <span className="spinner" aria-label="Rendering" />}
-          </button>
-        ))}
-      </div>
-    </details>
-  );
-}
-
 export function Studio() {
   const [params, setParams] = useState<AetheriaParams>(DEFAULT_PARAMS);
   const [saved, setSaved] = useState<SavedArtwork[]>([]);
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const [exporting, setExporting] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(true);
+  const [editorSection, setEditorSection] = useState<"pattern" | "color" | "text">("pattern");
+  const collapseRef = useRef<HTMLButtonElement>(null);
+  const showEditorRef = useRef<HTMLButtonElement>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      setParams((current) => normalizeParams({ ...current, ...paramsFromUrl() }));
+      setParams(paramsFromQuery(new URLSearchParams(window.location.search)));
       try {
         const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as SavedArtwork[];
         if (Array.isArray(stored)) {
-          const normalized = stored.slice(0, 24).map((item) => {
+          const normalized = stored.filter((item) => item && typeof item.id === "string" && item.params && typeof item.params === "object").slice(0, 24).map((item) => {
             const legacyParams = item.params as Partial<AetheriaParams> & { renderMode?: unknown };
             const needsDotsPreview = Object.prototype.hasOwnProperty.call(legacyParams, "renderMode");
             const needsTextPreview = typeof legacyParams.text !== "string" || !(legacyParams.textFont && legacyParams.textFont in TEXT_FONTS) || !isColor(legacyParams.textColor ?? null);
@@ -354,7 +249,7 @@ export function Studio() {
           }
         }
       } catch {
-        localStorage.removeItem(STORAGE_KEY);
+        try { localStorage.removeItem(STORAGE_KEY); } catch { /* Storage may be disabled. */ }
       }
     });
     return () => cancelAnimationFrame(frame);
@@ -382,22 +277,31 @@ export function Studio() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (previewOpen) return;
       const target = event.target as HTMLElement | null;
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || target?.closest("[contenteditable=true]")) return;
       if (event.code === "Space" && !event.repeat && !target?.matches("input, button, summary, textarea, select")) {
         event.preventDefault();
         shuffle();
       }
       if (event.key.toLowerCase() === "g" && !target?.matches("input, textarea, select")) setGalleryOpen((open) => !open);
-      if (event.key === "Escape") setGalleryOpen(false);
+      if (event.key === "Escape") {
+        if (galleryOpen) setGalleryOpen(false);
+        else { setEditorOpen(true); requestAnimationFrame(() => collapseRef.current?.focus()); }
+      }
+      if (event.key.toLowerCase() === "h" && !target?.matches("input, textarea, select")) {
+        setEditorOpen((open) => !open);
+        requestAnimationFrame(() => (editorOpen ? showEditorRef : collapseRef).current?.focus());
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shuffle]);
+  }, [shuffle, previewOpen, galleryOpen, editorOpen]);
 
   const selectPreset = (id: PresetId) => {
     const preset = PRESETS.find((item) => item.id === id);
     if (!preset) return;
-    setParams((current) => ({ ...current, ...preset.params, palette: id, customColors: PRESET_COLORS[id] }));
+    setParams((current) => ({ ...current, palette: id, customColors: PRESET_COLORS[id] }));
   };
 
   const activeColors = params.palette === "custom" ? params.customColors : PRESET_COLORS[params.palette];
@@ -443,22 +347,7 @@ export function Studio() {
   };
 
   const share = async () => {
-    const query = new URLSearchParams({
-      seed: String(params.seed),
-      palette: params.palette,
-      curves: String(params.curves),
-      turbulence: params.turbulence.toFixed(2),
-      spread: params.spread.toFixed(2),
-      thickness: params.thickness.toFixed(2),
-      grain: params.grain.toFixed(2),
-      blend: params.blendMode,
-      background: params.customColors.background,
-      primary: params.customColors.primary,
-      secondary: params.customColors.secondary,
-      text: params.text,
-      font: params.textFont,
-      textColor: params.textColor,
-    });
+    const query = paramsToQuery(params);
     const url = `${window.location.origin}${window.location.pathname}?${query}`;
     window.history.replaceState(null, "", url);
     try {
@@ -469,26 +358,13 @@ export function Studio() {
     }
   };
 
-  const handleExport = async (resolution: ExportResolution) => {
-    setExporting(resolution.id);
-    try {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-      await exportWallpaper(params, resolution);
-      setToast(`${resolution.label} PNG exported`);
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Export failed");
-    } finally {
-      setExporting(null);
-    }
-  };
-
   const isSaved = useMemo(() => saved.some((item) => JSON.stringify(item.params) === JSON.stringify(params)), [params, saved]);
 
   return (
     <main className="studio-shell">
       <h1 className="sr-only">Aetheria generative background studio</h1>
       <ArtCanvas params={params} />
-      <div className="canvas-scrim" aria-hidden="true" />
+      {editorOpen && <div className="canvas-scrim" aria-hidden="true" />}
       <ArtworkTextCanvas text={params.text} textColor={params.textColor} textFont={params.textFont} />
 
       <header className="topbar">
@@ -510,21 +386,28 @@ export function Studio() {
           <button className="top-button gallery-button" type="button" onClick={() => setGalleryOpen(true)} aria-label={`Open saved artwork gallery${saved.length > 0 ? `, ${saved.length} saved` : ""}`} aria-expanded={galleryOpen}>
             <PanelRight size={16} /><span>Gallery</span>{saved.length > 0 && <em>{saved.length}</em>}
           </button>
-          <ExportMenu onExport={handleExport} exporting={exporting} />
+          <button type="button" className="top-button primary-button" onClick={() => { setGalleryOpen(false); setPreviewOpen(true); }} aria-label="Preview and export wallpaper"><Expand size={16} /><span>Preview & export</span></button>
         </nav>
       </header>
 
-      <aside className="control-panel" aria-label="Generation controls">
+      <aside id="generation-controls" className="control-panel" aria-label="Generation controls" hidden={!editorOpen}>
         <div className="panel-heading">
           <div>
             <span className="panel-title">Atmosphere</span>
             <span className="panel-subtitle">Shape the field</span>
           </div>
+          <div className="panel-heading-actions">
           <button className="shuffle-button" type="button" onClick={shuffle} title="Shuffle (Space)">
             <Shuffle size={15} /> Shuffle <kbd>Space</kbd>
           </button>
+          <button ref={collapseRef} type="button" className="collapse-editor" aria-label="Hide editor" aria-expanded={editorOpen} aria-controls="generation-controls" title="Hide editor (H)" onClick={() => { setEditorOpen(false); requestAnimationFrame(() => showEditorRef.current?.focus()); }}><PanelLeftClose size={17} /></button>
+          </div>
         </div>
-
+        <div className="editor-sections" role="group" aria-label="Editor section">
+          {(["pattern", "color", "text"] as const).map((section) => <button key={section} type="button" aria-pressed={editorSection === section} className={editorSection === section ? "selected" : ""} onClick={() => setEditorSection(section)}>{section[0].toUpperCase() + section.slice(1)}</button>)}
+        </div>
+        <div className="panel-body">
+        <div hidden={editorSection !== "color"}>
         <div className="palette-control">
           <div className="palette-heading">
             <span><Palette size={15} /> Color</span>
@@ -564,7 +447,15 @@ export function Studio() {
           </div>
         </div>
 
-        <div className="text-control">
+        <SliderControl label="Film grain" value={params.grain} min={0} max={0.28} step={0.01} icon={<Blend size={15} />} onChange={(value) => update("grain", value)} display={`${Math.round(params.grain * 100)}%`} />
+        <div className="blend-control">
+          <span><Sparkles size={15} /> Compositing</span>
+          <div role="group" aria-label="Color blend mode">
+            {(["screen", "overlay"] as const).map((mode) => <button key={mode} type="button" className={params.blendMode === mode ? "selected" : ""} onClick={() => update("blendMode", mode)} aria-pressed={params.blendMode === mode}>{mode[0].toUpperCase() + mode.slice(1)}</button>)}
+          </div>
+        </div>
+        </div>
+        <div hidden={editorSection !== "text"} className="text-control">
           <div className="text-control-heading">
             <span><Type size={15} /> Center text</span>
             <label className="text-color" title="Text color">
@@ -591,28 +482,34 @@ export function Studio() {
           </div>
         </div>
 
-        <div className="controls-stack">
-          <SliderControl label="Dot density" value={params.curves} min={50} max={100} step={1} icon={<CircleDot size={15} />} onChange={(value) => update("curves", value)} />
-          <SliderControl label="Turbulence" value={params.turbulence} min={0.1} max={1} step={0.01} icon={<Gauge size={15} />} onChange={(value) => update("turbulence", value)} display={`${Math.round(params.turbulence * 100)}%`} />
-          <SliderControl label="Field spread" value={params.spread} min={0.2} max={1.25} step={0.01} icon={<Layers3 size={15} />} onChange={(value) => update("spread", value)} display={`${Math.round(params.spread * 100)}%`} />
-          <SliderControl label="Dot scale" value={params.thickness} min={0.5} max={2.6} step={0.05} icon={<CircleDot size={15} />} onChange={(value) => update("thickness", value)} display={`${params.thickness.toFixed(2)}×`} />
-          <SliderControl label="Film grain" value={params.grain} min={0} max={0.28} step={0.01} icon={<Blend size={15} />} onChange={(value) => update("grain", value)} display={`${Math.round(params.grain * 100)}%`} />
-        </div>
-
-        <div className="blend-control">
-          <span><Sparkles size={15} /> Compositing</span>
-          <div role="group" aria-label="Color blend mode">
-            {(["screen", "overlay"] as const).map((mode) => (
-              <button key={mode} type="button" className={params.blendMode === mode ? "selected" : ""} onClick={() => update("blendMode", mode)} aria-pressed={params.blendMode === mode}>
-                {mode[0].toUpperCase() + mode.slice(1)}
-              </button>
-            ))}
+        <div hidden={editorSection !== "pattern"}>
+          <PatternControls params={params} onChange={update} />
+          <div className="controls-stack">
+            <SliderControl label={params.style === "dots" ? "Dot density" : "Pattern density"} value={params.curves} min={50} max={100} step={1} icon={<CircleDot size={15} />} onChange={(value) => update("curves", value)} />
+            <SliderControl label={params.style === "dots" ? "Dot scale" : "Shape scale"} value={params.thickness} min={0.5} max={2.6} step={0.05} icon={<Layers3 size={15} />} onChange={(value) => update("thickness", value)} display={`${params.thickness.toFixed(2)}×`} />
+            {params.style !== "dots" && <SliderControl label="Relief" value={params.relief} min={0} max={1} step={0.01} icon={<Sparkles size={15} />} onChange={(value) => update("relief", value)} display={`${Math.round(params.relief * 100)}%`} />}
           </div>
+          <details className="composition-controls" open>
+            <summary>Wave & position <span>Move, turn, and shape</span></summary>
+            <SliderControl label="Horizontal position" value={params.offsetX} min={-1} max={1} step={0.01} icon={<MoveHorizontal size={15} />} onChange={(value) => update("offsetX", value)} display={`${Math.round(params.offsetX * 100)}%`} />
+            <SliderControl label="Vertical position" value={params.offsetY} min={-1} max={1} step={0.01} icon={<MoveVertical size={15} />} onChange={(value) => update("offsetY", value)} display={`${Math.round(params.offsetY * 100)}%`} />
+            <SliderControl label="Rotation" value={params.rotation} min={-180} max={180} step={1} icon={<RotateCw size={15} />} onChange={(value) => update("rotation", value)} display={`${params.rotation}°`} />
+            <SliderControl label="Zoom" value={params.zoom} min={0.4} max={3} step={0.05} icon={<ZoomIn size={15} />} onChange={(value) => update("zoom", value)} display={`${params.zoom.toFixed(2)}×`} />
+            <SliderControl label="Wave spacing" value={params.wavelength} min={0.3} max={3} step={0.05} icon={<Waves size={15} />} onChange={(value) => update("wavelength", value)} display={`${params.wavelength.toFixed(2)}×`} />
+            {params.flow !== "rows" && <SliderControl label="Wave height" value={params.amplitude} min={0} max={2} step={0.05} icon={<Waves size={15} />} onChange={(value) => update("amplitude", value)} display={`${Math.round(params.amplitude * 100)}%`} />}
+            {params.flow !== "rows" && <SliderControl label="Turbulence" value={params.turbulence} min={0} max={1} step={0.01} icon={<Gauge size={15} />} onChange={(value) => update("turbulence", value)} display={`${Math.round(params.turbulence * 100)}%`} />}
+            <SliderControl label="Field spread" value={params.spread} min={0.2} max={1.25} step={0.01} icon={<Layers3 size={15} />} onChange={(value) => update("spread", value)} display={`${Math.round(params.spread * 100)}%`} />
+            <button type="button" className="reset-composition" onClick={() => setParams((current) => ({ ...current, offsetX: 0, offsetY: 0, rotation: 0, zoom: 1, wavelength: 1, amplitude: 1, turbulence: DEFAULT_PARAMS.turbulence, spread: DEFAULT_PARAMS.spread }))}><RotateCcw size={13} /> Reset composition</button>
+          </details>
         </div>
+        </div>
+        <div className="panel-footer"><span>{ARTWORK_STYLES[params.style].label} · {FLOW_MODES[params.flow]}</span><button type="button" onClick={() => setPreviewOpen(true)}><Expand size={13} /> Clean preview</button></div>
       </aside>
 
+      {!editorOpen && <button ref={showEditorRef} type="button" className="show-editor top-button" aria-expanded={false} aria-controls="generation-controls" onClick={() => { setEditorOpen(true); requestAnimationFrame(() => collapseRef.current?.focus()); }}><SlidersHorizontal size={16} /> Show editor <kbd>H</kbd></button>}
+
       <div className="corner-note" aria-hidden="true">
-        <span>DOT FIELD</span>
+        <span>{ARTWORK_STYLES[params.style].label.toUpperCase()}</span>
         <i />
         <span>{params.curves} DENSITY</span>
       </div>
@@ -638,11 +535,11 @@ export function Studio() {
                   className={`saved-preview palette-${item.params.palette}`}
                   style={item.preview ? { backgroundImage: `url(${item.preview})` } : undefined}
                   role="img"
-                  aria-label={`Dots preview for seed ${item.params.seed}${item.params.text.trim() ? ` with text ${item.params.text.trim()}` : ""}`}
+                  aria-label={`${ARTWORK_STYLES[item.params.style].label} preview for seed ${item.params.seed}${item.params.text.trim() ? ` with text ${item.params.text.trim()}` : ""}`}
                 />
                 <span className="saved-copy">
                   <strong>{PALETTES[item.params.palette].name}</strong>
-                  <small>Seed {item.params.seed} · {item.params.text.trim() || "No text"}</small>
+                  <small>{ARTWORK_STYLES[item.params.style].label} · Seed {item.params.seed}</small>
                 </span>
               </button>
               <button className="delete-saved" type="button" onClick={() => deleteSaved(item.id)} aria-label={`Delete seed ${item.params.seed}`}><Trash2 size={15} /></button>
@@ -650,6 +547,8 @@ export function Studio() {
           ))}
         </div>
       </aside>
+
+      {previewOpen && <ExportPreview params={params} onClose={() => setPreviewOpen(false)} />}
 
       <div className={`toast ${toast ? "visible" : ""}`} role="status" aria-live="polite">
         <Check size={15} /> {toast}
