@@ -10,6 +10,25 @@ export type PaletteId =
   | "custom";
 export type BlendMode = "screen" | "overlay";
 export type TextFont = "grotesk" | "serif" | "mono" | "rounded";
+export type ArtworkStyle = "dots" | "discs" | "capsules" | "tiles" | "cells" | "ribbons" | "terraces";
+export type FlowMode = "organic" | "sweep" | "radial" | "rows";
+
+export const ARTWORK_STYLES: Record<ArtworkStyle, { label: string; description: string }> = {
+  dots: { label: "Dots", description: "Soft pigment and a fine halftone field." },
+  discs: { label: "Discs", description: "Tilted discs catching a soft directional light." },
+  capsules: { label: "Capsules", description: "Rounded forms carried along the current." },
+  tiles: { label: "Tiles", description: "Small beveled planes with a shifting rhythm." },
+  cells: { label: "Cells", description: "Open frames, sculpted edges, and quiet space." },
+  ribbons: { label: "Ribbons", description: "Continuous folds with a satin finish." },
+  terraces: { label: "Terraces", description: "Layered steps cut through a flowing surface." },
+};
+
+export const FLOW_MODES: Record<FlowMode, string> = {
+  organic: "Organic",
+  sweep: "Sweep",
+  radial: "Ripple",
+  rows: "Rows",
+};
 
 export const TEXT_FONTS: Record<TextFont, { label: string; family: string; weight: number; tracking: number }> = {
   grotesk: { label: "Grotesk", family: "Arial, Helvetica, sans-serif", weight: 800, tracking: 0.055 },
@@ -25,6 +44,15 @@ export interface CustomColors {
 }
 
 export interface AetheriaParams {
+  style: ArtworkStyle;
+  flow: FlowMode;
+  offsetX: number;
+  offsetY: number;
+  rotation: number;
+  zoom: number;
+  wavelength: number;
+  amplitude: number;
+  relief: number;
   seed: number;
   palette: PaletteId;
   curves: number;
@@ -116,6 +144,15 @@ export const PALETTES: Record<PaletteId, AetheriaPalette> = {
 };
 
 export const DEFAULT_PARAMS: AetheriaParams = {
+  style: "dots",
+  flow: "organic",
+  offsetX: 0,
+  offsetY: 0,
+  rotation: 0,
+  zoom: 1,
+  wavelength: 1,
+  amplitude: 1,
+  relief: 0.65,
   seed: 184729,
   palette: "obsidian",
   curves: 78,
@@ -165,6 +202,24 @@ uniform vec3 uBase;
 uniform vec3 uPrimary;
 uniform vec3 uSecondary;
 uniform vec3 uShade;
+uniform int uStyle;
+uniform int uFlow;
+uniform vec2 uOffset;
+uniform float uRotation;
+uniform float uZoom;
+uniform float uWavelength;
+uniform float uAmplitude;
+uniform float uRelief;
+
+mat2 rotate2d(float angle) {
+  float s = sin(angle), c = cos(angle);
+  return mat2(c, s, -s, c);
+}
+
+float roundedBox(vec2 p, vec2 bounds, float radius) {
+  vec2 q = abs(p) - bounds + radius;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+}
 
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -177,7 +232,7 @@ float softField(vec2 p, float phase, float time) {
     sin(p.y * 1.18 + sin(p.x * 0.71 + phase) + time * 0.13),
     cos(p.x * 1.03 - sin(p.y * 0.77 - phase) - time * 0.11)
   );
-  p += firstWarp * (0.28 + uTurbulence * 0.64);
+  p += firstWarp * (0.28 + uTurbulence * 0.64) * uAmplitude;
 
   float a = sin(p.x * 1.17 + sin(p.y * 1.43 + phase) * 1.28);
   float b = cos(p.y * 1.31 - p.x * 0.41 + cos(p.x * 0.79 - phase));
@@ -186,22 +241,38 @@ float softField(vec2 p, float phase, float time) {
   return clamp(0.5 + a * 0.16 + b * 0.145 + c * 0.105 + d * 0.07, 0.0, 1.0);
 }
 
+float compositionField(vec2 p, float phase, float time) {
+  p /= uWavelength;
+  if (uFlow == 1) {
+    float bend = sin(p.x * 1.1 + phase + time * 0.09) * uAmplitude * (0.4 + uTurbulence * 0.9);
+    return 0.5 + sin(p.y * 2.0 + bend + phase) * 0.32;
+  }
+  if (uFlow == 2) {
+    float bend = sin(atan(p.y, p.x) * 3.0 + phase) * uTurbulence * uAmplitude * 0.6;
+    return 0.5 + cos(length(p) * 3.0 + bend - time * 0.12) * 0.32;
+  }
+  if (uFlow == 3) return 0.58 + sin(p.y * 2.0 + phase) * 0.16;
+  return softField(p, phase, time);
+}
+
 void main() {
   vec2 uv = vUv;
   float aspect = uResolution.x / max(uResolution.y, 1.0);
   float phase = uSeed * 0.000071;
-  vec2 p = (uv - 0.5) * vec2(aspect, 1.0) * 3.7;
-  p += vec2(sin(phase * 1.7), cos(phase * 1.13)) * 1.9;
-  float field = softField(p, phase, uTime);
-  float companion = softField(p * 0.72 + vec2(2.4, -1.7), phase * 1.81, -uTime * 0.73);
-  field = clamp(field * 0.82 + companion * 0.27 - 0.045, 0.0, 1.0);
+  vec2 world = rotate2d(uRotation) * ((uv - 0.5 - uOffset * vec2(1.0, -1.0)) * vec2(aspect, 1.0)) / uZoom;
+  vec2 p = world * 3.7;
+  if (uFlow != 2) p += vec2(sin(phase * 1.7), cos(phase * 1.13)) * 1.9;
+  float field = compositionField(p, phase, uTime);
+  float companion = compositionField(p * 0.72 + vec2(2.4, -1.7), phase * 1.81, -uTime * 0.73);
+  if (uFlow == 0) field = clamp(field * 0.82 + companion * 0.27 - 0.045, 0.0, 1.0);
 
   float cellSize = mix(7.2, 3.35, uDensity);
   vec2 latticeWarp = vec2(
     sin(p.y * 1.7 + field * 5.2 + phase),
     cos(p.x * 1.45 - companion * 4.6 - phase)
   );
-  vec2 lattice = gl_FragCoord.xy / cellSize + latticeWarp * (0.46 + uTurbulence * 2.35);
+  vec2 lattice = (world + vec2(aspect, 1.0) * 0.5) * uResolution.y / cellSize;
+  lattice += latticeWarp * (0.46 + uTurbulence * 2.35) * uAmplitude * (uFlow == 3 ? 0.0 : 1.0);
   vec2 dotPoint = fract(lattice) - 0.5;
   float dotDistance = length(dotPoint);
   float tonalSpread = mix(0.78, 1.22, uSpread);
@@ -217,6 +288,68 @@ void main() {
   color = mix(color, uPrimary, mist);
   color = mix(color, uPrimary, coverage);
   color = mix(color, uSecondary, transitionBand * 0.46);
+
+  if (uStyle > 0 && uStyle < 5) {
+    float spacing = mix(76.0, 30.0, uDensity);
+    vec2 grid = world * 1000.0 / spacing;
+    if (uFlow != 3) grid += latticeWarp * uTurbulence * uAmplitude * 1.15;
+    vec2 cell = fract(grid) - 0.5;
+    float tilt = uFlow == 3 ? 0.42 : 0.42 + (field - 0.5) * 1.4;
+    vec2 local = rotate2d(tilt) * cell;
+    float size = clamp((0.2 + field * 0.3 * tonalSpread) * sqrt(uThickness), 0.12, 0.46);
+    float distance;
+    if (uStyle == 1) distance = (length(local / vec2(1.0, 0.58)) - size) * 0.58;
+    else if (uStyle == 2) {
+      vec2 capsule = local;
+      capsule.y -= clamp(capsule.y, -size * 0.56, size * 0.56);
+      distance = length(capsule) - size * 0.39;
+    } else {
+      distance = roundedBox(local, vec2(size * 0.82), 0.025);
+      if (uStyle == 4) distance = abs(distance + 0.038) - 0.038;
+    }
+    // Use the continuous grid footprint: derivatives across fract() seams draw false cell borders.
+    float aa = max(length(fwidth(grid)) * 0.55, 0.0005);
+    float mask = 1.0 - smoothstep(-aa, aa, distance);
+    float bevel = 1.0 - smoothstep(0.0, 0.045, -distance);
+    vec2 normal = vec2(dFdx(distance), dFdy(distance)) / max(fwidth(distance), 0.00001);
+    float light = dot(normal, normalize(vec2(-0.65, 0.85)));
+    float face = clamp(0.67 + local.y * 0.46 - local.x * 0.26, 0.3, 1.0);
+    vec3 pigment = mix(uPrimary, uSecondary, smoothstep(0.3, 0.8, field) * 0.6);
+    vec3 material = pigment * mix(1.0, face * 1.13, uRelief);
+    material += max(light, 0.0) * bevel * uRelief * 0.32;
+    material *= 1.0 - max(-light, 0.0) * bevel * uRelief * 0.5;
+    float shadow = (1.0 - smoothstep(0.0, 0.1, max(distance, 0.0))) * (1.0 - mask);
+    shadow *= 1.0 - smoothstep(0.4, 0.5, max(abs(cell.x), abs(cell.y)));
+    color = mix(uBase, uShade, shadow * uRelief * 0.28 + shadowCloud * 0.35);
+    color = mix(color, material, mask);
+  }
+
+  if (uStyle >= 5) {
+    float bands = mix(7.0, 23.0, uDensity);
+    float height = field * bands * mix(0.8, 1.4, uSpread);
+    float footprint = max(fwidth(height), 0.0001);
+    color = vec3(0.0);
+    // Integrate across the pixel footprint so terrace edges stay clean at preview sizes.
+    for (int sampleIndex = 0; sampleIndex < 4; sampleIndex++) {
+      float sampleHeight = height + (float(sampleIndex) - 1.5) * footprint * 0.25;
+      float fold = fract(sampleHeight);
+      float profile = uStyle == 5
+        ? pow(0.5 - 0.5 * cos(fold * 6.283185), 0.75 / uThickness)
+        : smoothstep(0.0, 0.17 * uThickness, fold);
+      float tint = 0.5 + 0.5 * sin((uStyle == 5 ? sampleHeight : floor(sampleHeight)) * 0.46 + phase);
+      vec3 pigment = mix(uPrimary, uSecondary, tint * 0.72);
+      vec3 material = mix(pigment, pigment * mix(0.34, 1.12, profile), uRelief);
+      if (uStyle == 5) {
+        float sheen = pow(max(cos((fold - 0.35) * 6.283185), 0.0), 10.0);
+        material += sheen * uRelief * 0.08;
+      } else {
+        float bevel = 1.0 - smoothstep(0.0, 0.035, fold);
+        material += bevel * uRelief * 0.1;
+      }
+      color += material * 0.25;
+    }
+    color = mix(color, uBase, (1.0 - smoothstep(0.12, 0.4, field)) * 0.32);
+  }
 
   if (uBlend > 0.5) {
     color = mix(color, smoothstep(vec3(0.0), vec3(1.0), color * color * (3.0 - 2.0 * color)), 0.3);
@@ -275,7 +408,15 @@ type UniformName =
   | "uBase"
   | "uPrimary"
   | "uSecondary"
-  | "uShade";
+  | "uShade"
+  | "uStyle"
+  | "uFlow"
+  | "uOffset"
+  | "uRotation"
+  | "uZoom"
+  | "uWavelength"
+  | "uAmplitude"
+  | "uRelief";
 
 function hexToRgb(value: string, fallback: Rgb): Rgb {
   const match = /^#([0-9a-f]{6})$/i.exec(value);
@@ -395,6 +536,7 @@ export class AetheriaRenderer {
       "uPrimary",
       "uSecondary",
       "uShade",
+      "uStyle", "uFlow", "uOffset", "uRotation", "uZoom", "uWavelength", "uAmplitude", "uRelief",
     ];
     this.uniforms = Object.fromEntries(
       names.map((name) => {
@@ -424,6 +566,14 @@ export class AetheriaRenderer {
     gl.uniform3fv(this.uniforms.uPrimary, palette.primary);
     gl.uniform3fv(this.uniforms.uSecondary, palette.secondary);
     gl.uniform3fv(this.uniforms.uShade, palette.shade);
+    gl.uniform1i(this.uniforms.uStyle, Object.keys(ARTWORK_STYLES).indexOf(params.style ?? "dots"));
+    gl.uniform1i(this.uniforms.uFlow, Object.keys(FLOW_MODES).indexOf(params.flow ?? "organic"));
+    gl.uniform2f(this.uniforms.uOffset, params.offsetX ?? 0, params.offsetY ?? 0);
+    gl.uniform1f(this.uniforms.uRotation, (params.rotation ?? 0) * Math.PI / 180);
+    gl.uniform1f(this.uniforms.uZoom, params.zoom ?? 1);
+    gl.uniform1f(this.uniforms.uWavelength, params.wavelength ?? 1);
+    gl.uniform1f(this.uniforms.uAmplitude, params.amplitude ?? 1);
+    gl.uniform1f(this.uniforms.uRelief, params.relief ?? 0.65);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     if (options.sync) gl.finish();
   }

@@ -4,7 +4,7 @@ import { Studio } from "@/components/Studio";
 export const metadata: Metadata = {
   title: "Studio",
   description:
-    "Shape, save, share, and export a procedural halftone background from your browser.",
+    "Explore seven procedural styles, shape the flow, and preview your full-resolution wallpaper before downloading.",
   alternates: {
     canonical: "/studio",
   },

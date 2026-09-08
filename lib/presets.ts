@@ -4,6 +4,7 @@ import {
   DEFAULT_PARAMS,
   PaletteId,
 } from "@/lib/engine";
+import { paramsToQuery } from "./params";
 
 export type PresetId = Exclude<PaletteId, "custom">;
 
@@ -60,19 +61,5 @@ function createStarter(id: PresetId, seed: number): AetheriaParams {
 }
 
 export function studioHref(params: AetheriaParams) {
-  const query = new URLSearchParams({
-    seed: String(params.seed),
-    palette: params.palette,
-    curves: String(params.curves),
-    turbulence: params.turbulence.toFixed(2),
-    spread: params.spread.toFixed(2),
-    thickness: params.thickness.toFixed(2),
-    grain: params.grain.toFixed(2),
-    blend: params.blendMode,
-    text: params.text,
-    font: params.textFont,
-    textColor: params.textColor,
-  });
-
-  return `/studio?${query}`;
+  return `/studio?${paramsToQuery(params)}`;
 }
