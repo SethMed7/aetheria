@@ -33,6 +33,7 @@ import { ExportPreview } from "./ExportPreview";
 import { PatternControls } from "./PatternControls";
 import { PRESET_COLORS, PRESETS, PresetId } from "@/lib/presets";
 import { AetheriaMark } from "@/components/AetheriaMark";
+import { Atmosphere } from "@/components/Atmosphere";
 
 const STORAGE_KEY = "aetheria.saved-seeds.v1";
 
@@ -362,6 +363,7 @@ export function Studio() {
 
   return (
     <main className="studio-shell">
+      <Atmosphere />
       <h1 className="sr-only">Aetheria generative background studio</h1>
       <ArtCanvas params={params} />
       {editorOpen && <div className="canvas-scrim" aria-hidden="true" />}

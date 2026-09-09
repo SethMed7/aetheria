@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Download, Expand, Minimize, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Atmosphere } from "@/components/Atmosphere";
 import { AetheriaParams, ARTWORK_STYLES } from "@/lib/engine";
 import { downloadWallpaper, EXPORT_RESOLUTIONS, renderWallpaper } from "@/lib/export";
 
@@ -65,6 +66,7 @@ export function ExportPreview({ params, onClose }: { params: AetheriaParams; onC
   return (
     <dialog ref={dialogRef} className="export-preview" aria-labelledby="preview-title" onCancel={(event) => { event.preventDefault(); onClose(); }}>
       <div ref={fullscreenRef} className="preview-frame">
+      <Atmosphere />
       <header className="preview-toolbar">
         <button type="button" className="top-button preview-back" aria-label="Back to editor" onClick={onClose}><ArrowLeft size={16} /><span>Back to editor</span></button>
         <div className="preview-title"><h2 id="preview-title">{ARTWORK_STYLES[params.style].label}</h2><span>Seed {params.seed}</span></div>

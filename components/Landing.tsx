@@ -11,15 +11,36 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createArtworkPreviews } from "@/lib/engine";
+import {
+  ARTWORK_STYLES,
+  ArtworkStyle,
+  createArtworkPreviews,
+  DEFAULT_PARAMS,
+  FLOW_MODES,
+  FlowMode,
+} from "@/lib/engine";
 import { EXPORT_RESOLUTIONS, exportWallpaper } from "@/lib/export";
 import { STARTER_ARTWORKS, studioHref } from "@/lib/presets";
 import { AetheriaMark } from "@/components/AetheriaMark";
+import { Atmosphere } from "@/components/Atmosphere";
 
 const STARTER_RESOLUTION = EXPORT_RESOLUTIONS[0];
+const PATTERN_STYLES = Object.keys(ARTWORK_STYLES) as ArtworkStyle[];
+const FLOW_OPTIONS = Object.keys(FLOW_MODES) as FlowMode[];
+
+function patternPreviewParams(style: ArtworkStyle) {
+  return {
+    ...DEFAULT_PARAMS,
+    style,
+    text: "",
+    curves: 50,
+    zoom: ["dots", "ribbons", "terraces"].includes(style) ? 1 : 2.5,
+  };
+}
 
 export function Landing() {
   const [previews, setPreviews] = useState<string[]>([]);
+  const [patternPreviews, setPatternPreviews] = useState<string[]>([]);
   const [previewError, setPreviewError] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [notice, setNotice] = useState<{
@@ -36,7 +57,15 @@ export function Landing() {
           960,
           600,
         );
-        if (!cancelled) setPreviews(generated);
+        const patterns = createArtworkPreviews(
+          PATTERN_STYLES.map((style) => patternPreviewParams(style)),
+          320,
+          200,
+        );
+        if (!cancelled) {
+          setPreviews(generated);
+          setPatternPreviews(patterns);
+        }
       } catch {
         if (!cancelled) setPreviewError(true);
       }
@@ -89,6 +118,7 @@ export function Landing() {
           <span>Aetheria</span>
         </Link>
         <nav aria-label="Primary navigation">
+          <a href="#patterns">Patterns</a>
           <a href="#starter-art">Free artwork</a>
           <a
             href="https://github.com/SethMed7/aetheria"
@@ -106,12 +136,13 @@ export function Landing() {
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">
-            Backgrounds made of dots.
-            <span>Tuned by hand.</span>
+            Generative backgrounds,
+            <span>tuned by hand.</span>
           </h1>
           <p>
-            A free, open-source WebGL instrument for shaping cinematic
-            backgrounds in seconds. No account. No upload. No watermark.
+            A free, open-source WebGL studio with seven pattern styles, four
+            flow modes, eight palettes, and lossless export. No account. No
+            upload. No watermark.
           </p>
           <div className="hero-actions">
             <Link className="landing-primary-action" href="/studio">
@@ -127,20 +158,64 @@ export function Landing() {
           className={`hero-art palette-obsidian ${previews[0] ? "is-rendered" : ""}`}
           style={heroStyle}
           role="img"
-          aria-label="Cyan Drift, a cyan and silver warped halftone background"
+          aria-label="Cyan Drift, obsidian palette dots pattern with organic flow"
         >
           <span className="hero-art-label">Cyan Drift</span>
-          <span className="hero-art-data">Seed 184729 · WebGL 2</span>
+          <span className="hero-art-data">
+            {ARTWORK_STYLES[STARTER_ARTWORKS[0].params.style].label} · Seed 184729
+          </span>
+        </div>
+      </section>
+
+      <section id="patterns" className="patterns-section" aria-labelledby="patterns-title">
+        <div className="section-intro">
+          <h2 id="patterns-title">Seven patterns. Four flows.</h2>
+          <p>
+            Switch shape families and flow modes in the studio, then fine-tune
+            density, wave, position, palette, grain, and centered type before
+            export.
+          </p>
+        </div>
+        <div className="pattern-gallery" role="list">
+          {PATTERN_STYLES.map((style, index) => (
+            <article className="pattern-card" key={style} role="listitem">
+              <div
+                className={`pattern-thumb ${patternPreviews[index] ? "is-rendered" : ""}`}
+                style={
+                  patternPreviews[index]
+                    ? { backgroundImage: `url(${patternPreviews[index]})` }
+                    : undefined
+                }
+                role="img"
+                aria-label={`${ARTWORK_STYLES[style].label} pattern preview`}
+              />
+              <div className="pattern-copy">
+                <h3>{ARTWORK_STYLES[style].label}</h3>
+                <p>{ARTWORK_STYLES[style].description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="flow-strip" aria-label="Flow modes available in the studio">
+          {FLOW_OPTIONS.map((flow) => (
+            <span key={flow}>{FLOW_MODES[flow]}</span>
+          ))}
+        </div>
+        <div className="patterns-cta">
+          <Link className="landing-primary-action" href="/studio">
+            Open the studio <ArrowRight size={17} aria-hidden="true" />
+          </Link>
         </div>
       </section>
 
       <section id="starter-art" className="starter-section" aria-labelledby="starter-title">
+        <Atmosphere variant="landing" />
         <div className="section-intro">
           <h2 id="starter-title">Start with one. Keep every pixel.</h2>
           <p>
-            Six ready-made 4K PNGs, rendered in your browser and free for any
-            project. Open one in the studio to change its color, texture, seed,
-            or type.
+            Eight ready-made 4K PNGs, rendered in your browser and free for any
+            project. Open one in the studio to change pattern, flow, palette,
+            seed, or composition.
           </p>
         </div>
 
@@ -214,12 +289,18 @@ export function Landing() {
           <article>
             <span>02</span>
             <h3>Built for remixing</h3>
-            <p>MIT licensed, readable TypeScript, and one focused WebGL shader.</p>
+            <p>
+              MIT licensed TypeScript with shareable URLs, saved seeds, and a
+              single WebGL shader driving every style.
+            </p>
           </article>
           <article>
             <span>03</span>
             <h3>Full-resolution output</h3>
-            <p>Export lossless 4K, 5K, and vertical mobile PNGs without a server.</p>
+            <p>
+              Preview the exact PNG, then export 4K, 5K, or vertical mobile
+              wallpapers without a server.
+            </p>
           </article>
         </div>
       </section>
@@ -227,7 +308,10 @@ export function Landing() {
       <section className="final-invitation" aria-labelledby="final-title">
         <div>
           <h2 id="final-title">One seed away from your own atmosphere.</h2>
-          <p>Shape it, save it, export it. Aetheria is free from first dot to final pixel.</p>
+          <p>
+            Shape pattern and flow, save seeds, and export. Aetheria is free from
+            first shuffle to final pixel.
+          </p>
         </div>
         <Link href="/studio">
           Open the studio <ArrowRight size={18} aria-hidden="true" />
@@ -235,6 +319,7 @@ export function Landing() {
       </section>
 
       <footer className="landing-footer">
+        <Atmosphere variant="landing" />
         <Link href="/" className="landing-brand" aria-label="Aetheria home">
           <AetheriaMark size={24} />
           <span>Aetheria</span>

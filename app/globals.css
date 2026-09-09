@@ -89,6 +89,55 @@ button:disabled {
   border: 0;
 }
 
+.atmosphere {
+  --atmo-base: var(--bg);
+  --atmo-grid: oklch(0.2 0.014 200 / 0.42);
+  --atmo-glow-a: oklch(0.58 0.13 175 / 0.2);
+  --atmo-glow-b: oklch(0.42 0.09 205 / 0.14);
+  --atmo-glow-c: oklch(0.24 0.02 210 / 0.1);
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background-color: var(--atmo-base);
+  background-image:
+    linear-gradient(var(--atmo-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--atmo-grid) 1px, transparent 1px),
+    radial-gradient(ellipse 58% 48% at 82% 14%, var(--atmo-glow-a), transparent 72%),
+    radial-gradient(ellipse 52% 44% at 14% 88%, var(--atmo-glow-b), transparent 68%),
+    radial-gradient(ellipse 42% 38% at 48% 52%, var(--atmo-glow-c), transparent 64%);
+  background-size: 3px 3px, 3px 3px, 100% 100%, 100% 100%, 100% 100%;
+}
+
+.atmosphere::before {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 42%, oklch(0.04 0.01 220 / 0.55) 100%);
+  content: "";
+}
+
+.atmosphere::after {
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+  content: "";
+}
+
+.atmosphere-landing {
+  --atmo-base: var(--landing-dark);
+  --atmo-grid: oklch(0.22 0.02 210 / 0.34);
+  --atmo-glow-a: oklch(0.55 0.12 205 / 0.16);
+  --atmo-glow-b: oklch(0.4 0.08 190 / 0.11);
+  --atmo-glow-c: oklch(0.2 0.02 215 / 0.08);
+}
+
 .studio-shell {
   position: relative;
   width: 100%;
@@ -191,7 +240,7 @@ button:disabled {
   justify-content: center;
   gap: 8px;
   padding: 24px;
-  background: var(--bg);
+  background: transparent;
   color: var(--muted);
   text-align: center;
 }
@@ -1468,6 +1517,8 @@ kbd {
 }
 
 .starter-section {
+  position: relative;
+  isolation: isolate;
   padding: clamp(78px, 11vw, 164px) 20px;
   scroll-margin-top: 24px;
   background: var(--landing-dark);
@@ -1601,6 +1652,75 @@ kbd {
   font-size: 0.875rem;
 }
 
+.patterns-section {
+  padding: clamp(78px, 11vw, 164px) 20px;
+  scroll-margin-top: 24px;
+  background: var(--landing-paper);
+}
+
+.pattern-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pattern-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pattern-thumb {
+  width: 100%;
+  aspect-ratio: 1.65;
+  border: 1px solid oklch(0.15 0.022 221 / 0.12);
+  background: var(--landing-paper-deep) center / cover;
+  box-shadow: 0 10px 28px oklch(0.15 0.022 221 / 0.08);
+}
+
+.pattern-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.pattern-copy h3 {
+  font-size: 0.95rem;
+  font-weight: 670;
+  letter-spacing: -0.02em;
+}
+
+.pattern-copy p {
+  color: var(--landing-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.flow-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: clamp(28px, 5vw, 44px);
+}
+
+.flow-strip span {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid oklch(0.15 0.022 221 / 0.18);
+  border-radius: 999px;
+  color: var(--landing-ink);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.patterns-cta {
+  margin-top: 28px;
+}
+
 .open-section {
   padding: clamp(82px, 11vw, 164px) 20px;
   background: var(--landing-paper);
@@ -1715,6 +1835,8 @@ kbd {
 }
 
 .landing-footer {
+  position: relative;
+  isolation: isolate;
   display: grid;
   gap: 16px;
   align-items: center;
@@ -1796,9 +1918,15 @@ kbd {
   }
 
   .hero-copy,
+  .patterns-section,
   .starter-section,
   .open-section {
     padding-inline: 32px;
+  }
+
+  .pattern-gallery {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
   }
 
   .starter-artwork figcaption {
@@ -1860,6 +1988,7 @@ kbd {
     right: 28px;
   }
 
+  .patterns-section,
   .starter-section,
   .open-section {
     padding-inline: 42px;
@@ -1872,6 +2001,15 @@ kbd {
 
   .section-intro p {
     justify-self: end;
+  }
+
+  .pattern-gallery {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .patterns-cta {
+    margin-top: 36px;
   }
 
   .starter-gallery {
@@ -1927,9 +2065,16 @@ kbd {
   }
 }
 
+@media (min-width: 1280px) {
+  .pattern-gallery {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 1500px) {
   .landing-nav,
   .hero-copy,
+  .patterns-section,
   .starter-section,
   .open-section,
   .final-invitation,
@@ -1976,9 +2121,9 @@ kbd {
 .panel-footer button:hover { color: var(--primary); }
 .show-editor { position: absolute; z-index: var(--z-content); left: 24px; bottom: 24px; min-height: 44px; background: var(--panel-solid); }
 
-.export-preview { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: 100%; max-height: 100%; margin: 0; padding: 0; border: 0; background: var(--panel-solid); color: var(--ink); overflow: hidden; }
+.export-preview { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: 100%; max-height: 100%; margin: 0; padding: 0; border: 0; background: var(--panel-solid); color: var(--ink); overflow: hidden; isolation: isolate; }
 .export-preview[open] { display: block; }
-.preview-frame { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; background: var(--panel-solid); }
+.preview-frame { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; background: var(--panel-solid); isolation: isolate; }
 .export-preview::backdrop { background: var(--panel-solid); }
 .preview-toolbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; padding: max(14px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 14px max(20px, env(safe-area-inset-left)); }
 .preview-back { justify-self: start; }

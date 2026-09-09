@@ -46,6 +46,8 @@ export const STARTER_ARTWORKS: Array<{
   { id: "emerald", name: "Emerald Flow", description: "Mineral green over a quiet field.", params: createStarter("emerald", 805214) },
   { id: "coral", name: "Coral Pulse", description: "A warm red field with a dark center.", params: createStarter("coral", 492076) },
   { id: "cobalt", name: "Cobalt Bloom", description: "Electric blue with a deep-violet edge.", params: createStarter("cobalt", 716305) },
+  { id: "citron", name: "Citron Field", description: "Acid green carried over warm parchment.", params: createStarter("citron", 538291) },
+  { id: "mono", name: "Silver Ink", description: "Graphic neutrals in a quiet halftone field.", params: createStarter("mono", 194827) },
 ];
 
 function createStarter(id: PresetId, seed: number): AetheriaParams {
